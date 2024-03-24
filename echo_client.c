@@ -138,7 +138,7 @@ int main(int argc, char *argv[]){
     struct sockaddr_storage addr;
     
     //txt
-    int txt_num = 2;
+    int txt_num = 3;
 	unsigned char query_txt_buffer[txt_num][5000];
 	char** txt_record_data;
 	txt_record_data = (char**) malloc(sizeof(char*) * txt_num);
@@ -450,8 +450,8 @@ static int tlsa_query(char *argv[], int tlsa_num, unsigned char query_buffer[], 
 	printf("pqtlsa_num: %d\n", tlsa_num-1);
 	char query_url[100] = "_443._udp.";
 	strcat(query_url,argv[tlsa_num]);
-	//ns_type type2;
-	//type2 = 61440;
+	ns_type type2;
+	type2 = ns_t_tlsa;
 	ns_msg nsMsg;
 	ns_rr rr;
 	int response;
@@ -460,7 +460,7 @@ static int tlsa_query(char *argv[], int tlsa_num, unsigned char query_buffer[], 
     	clock_gettime(CLOCK_MONOTONIC, &begin);
     	printf("start DNS PQTLSA query: %f\n",(begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
 		//printf("start DNS TLSA query:\n");
-		response = res_search(query_url, C_IN, 61440, query_buffer, buffer_size);
+		response = res_search(query_url, C_IN, type2, query_buffer, buffer_size);
 		// log
     	clock_gettime(CLOCK_MONOTONIC, &begin);
     	printf("complete DNS PQTLSA query : %f\n",(begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
@@ -471,13 +471,13 @@ static int tlsa_query(char *argv[], int tlsa_num, unsigned char query_buffer[], 
 	}
 	ns_initparse(query_buffer, response, &nsMsg);
 	ns_parserr(&nsMsg, ns_s_an, 0, &rr);
-	u_char const *rdata = (u_char*)(ns_rr_rdata(rr)+2);
+	u_char const *rdata = (u_char*)(ns_rr_rdata(rr)+3);
 	
 	*tlsa_record_all = (unsigned char*)rdata;
 	
 	
 	int len = ns_rr_rdlen(rr);
-	return len-2;
+	return len-3;
 }
 static void init_openssl(){
     SSL_load_error_strings();
