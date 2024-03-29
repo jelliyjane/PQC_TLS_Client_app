@@ -32,7 +32,7 @@ struct DNS_info{
         uint16_t *extension_data;
     } EncryptedExtensions;
     struct {
-        uint8_t group;
+        uint16_t group;
         EVP_PKEY *skey; // server's keyshare
     } KeyShareEntry;
     X509* cert; // server's cert
@@ -259,16 +259,17 @@ int main(int argc, char *argv[]){
 	char txt_record_except_signature[BUF_SIZE]="";
 	strcat(txt_record_all,txt_record_data[0]);
 	strcat(txt_record_all,txt_record_data[1]);
+	strcat(txt_record_all,txt_record_data[2]);
 
 	for (int i = 0; i < txt_num; ++i)
 	{
 		free(txt_record_data[i]);
 	}
 	free(txt_record_data);
-	//printf("txt_record_all:\n%s\n\n",txt_record_all);
+	printf("txt_record_all:\n%s\n\n",txt_record_all);
         load_dns_info2(&dns_info, txt_record_except_signature, txt_record_all, ztls_cert); 
 		SSL_CTX_add_custom_ext(ctx, 53, SSL_EXT_CLIENT_HELLO, dns_info_add_cb, dns_info_free_cb,NULL, NULL,NULL);// extentionTye = 53, Extension_data = dns_cache_id
-    	if(dns_info.KeyShareEntry.group == 29){  // keyshare group : 0x001d(X25519)
+    	if(dns_info.KeyShareEntry.group == 570){  // keyshare group : 0x001d(X25519)
 			//SSL_CTX_set1_groups_list(ctx, "X25519");
 			ssl = SSL_new(ctx);
 		if(!SSL_set1_groups_list(ssl, "kyber512"))
@@ -489,8 +490,8 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
     char *tmp;
 	//char publickey_prefix[5000] = "-----BEGIN PUBLIC KEY-----\n";
 	char *publickey_prefix;
-	publickey_prefix = (char *) malloc(sizeof(char)*4000);
-	memset(publickey_prefix, 0, sizeof(char)*4000);
+	publickey_prefix = (char *) malloc(sizeof(char)*6000);
+	memset(publickey_prefix, 0, sizeof(char)*6000);
 	strcpy(publickey_prefix, "-----BEGIN PUBLIC KEY-----\n");
 	//printf("%s\n", publickey_prefix);
 	
@@ -508,7 +509,7 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
 	char certificate_postfix2[30] = "-----END CERTIFICATE-----\n";
 	char txt_record_signature[BUF_SIZE];
 	char newline[4] = "\n";
-	char * ztls_version = "v=ztls1";
+	char * ztls_version = "v=pqztls_1";
 	char *ztls_cert_copy;
 	ztls_cert_copy = (char *) malloc(sizeof(char)*7000);
 	//printf("ztls_cert2: \n%s\n\n", ztls_cert);
@@ -560,22 +561,40 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
 	tmp = strtok(NULL," ");
 	//printf("key num: %s\n", tmp);
 	strcat(truncated_dnsmsg_out,tmp);
-    dp->KeyShareEntry.group = strtoul(tmp, NULL, 0);
-	
+    dp->KeyShareEntry.group = strtoul(tmp, NULL, 10);
+	printf("dp->KeyshareEntry.group: %d\n",dp->KeyShareEntry.group);	
 	tmp = strtok(NULL," ");
 	int skey_dlen = atoi(tmp);
-	//printf("skey_dlen: %d\n", skey_dlen);
+	printf("skey_dlen: %d\n", skey_dlen);
+	//tmp = strtok(NULL," ");
+	char token_buf[500];
+	char *token;
 	tmp = strtok(NULL," ");
+	if (token != NULL) {
+        	strncpy(tmp, token, sizeof(tmp) - 1); // 첫 토큰을 tmp에 복사
+    	}
 	for (int i = 1; i < skey_dlen; i++)
 	{
-		strcat(tmp,strtok(NULL," "));
+		token = strtok(NULL, " ");
+		if (token != NULL) {
+            // 임시 버퍼에 안전하게 토큰 복사
+            		strncpy(token_buf, token, sizeof(token_buf) - 1);
+            		token_buf[sizeof(token_buf) - 1] = '\0'; // 널 종료 보장
+
+            // tmp에 안전하게 token_buffer 내용 추가
+            		strncat(tmp, token_buf, sizeof(tmp) - strlen(tmp) - 1);
+
+            		printf("tmp #%d %s\n", i, tmp); // 현재 상태 출력
+		}	
+		//strcat(tmp,strtok(NULL," "));
+		//printf("tmp #%d %s\n",i, tmp);
 	}
-	//printf("publickey: %s\n\n", tmp);
+	printf("publickey: %s\n\n", tmp);
 	strcat(truncated_dnsmsg_out,tmp);
 	
 	//strcat(publickey_prefix, tmp);
 	// load publickey
-	for(int j = 0; j < 1100 ; j=j+64){
+	for(int j = 0; j < 1103 ; j=j+64){
 		strncat(publickey_prefix,tmp+j,64);
 		strcat(publickey_prefix,"\n");
 		//printf("hex_out_cert: %s", hex_out_cert);
@@ -584,9 +603,9 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
 	//strcat(publickey_prefix,"\n");
 	//strcat(publickey_prefix,tmp);
 	strcat(publickey_prefix, publickey_postfix);
-
+        printf("publickey_prefix: %s\n",publickey_prefix);
 	bio_key = BIO_new(BIO_s_mem());
-    printf("public key length: %d\n", BIO_puts(bio_key, publickey_prefix));
+ 	printf("public key length: %d\n", BIO_puts(bio_key, publickey_prefix));
 
 
 	PEM_read_bio_PUBKEY(bio_key, &(dp->KeyShareEntry.skey), NULL, NULL);
@@ -629,11 +648,11 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
 	//strtok(NULL," ");
 	tmp = strtok(NULL," ");
 	strcat(truncated_dnsmsg_out,tmp);
-	//printf("Client Certificate Request: %s\n", tmp);
+	printf("Client Certificate Request: %s\n", tmp);
 	
 	//strtok(NULL," ");
 	tmp = strtok(NULL," ");
-	//printf("%s\n", tmp);
+	printf("%s\n", tmp);
 	strcat(truncated_dnsmsg_out,tmp);
 	//printf("truncated_dnsmsg_out: %s\n\n", truncated_dnsmsg_out);
 	
@@ -674,7 +693,8 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
 
 	strcpy((char*)dp->CertVerifyEntry.cert_verify, txt_record_signature);
 	//printf("cert_verify:\n%s\n",dp->CertVerifyEntry.cert_verify);
-    return 0;
+    	printf("dns info 2 done! \n\n");
+	    return 0;
 }
 
 static SSL_CTX *create_context(){
