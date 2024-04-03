@@ -138,7 +138,7 @@ int main(int argc, char *argv[]){
     struct sockaddr_storage addr;
     
     //txt
-    int txt_num = 3;
+    int txt_num = 5;
 	unsigned char query_txt_buffer[txt_num][5000];
 	char** txt_record_data;
 	txt_record_data = (char**) malloc(sizeof(char*) * txt_num);
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]){
 	}
 	
 	//pqtlsa
-	int tot_num = 4;
+	int tot_num = 7;
 	unsigned char *pqtlsa_record_all[tot_num];
 	char pqtlsa_record[BUF_SIZE];
 	unsigned char query_pqtlsa_buffer[tot_num][4096];
@@ -231,7 +231,12 @@ int main(int argc, char *argv[]){
 	    {
 	    	pthread_join(ptid_pqtlsa[i], (void **)(pqtlsa_len+i));
 	    }
-	    pthread_join(ptid_txt[0], NULL);
+
+	    for (int i = 0; i < txt_num; ++i)
+	    {
+		    pthread_join(ptid_txt[i], NULL);
+	    }
+	    //pthread_join(ptid_txt[0], NULL);
 
 	pthread_mutex_destroy(&mutex);
 
@@ -260,13 +265,15 @@ int main(int argc, char *argv[]){
 	strcat(txt_record_all,txt_record_data[0]);
 	strcat(txt_record_all,txt_record_data[1]);
 	strcat(txt_record_all,txt_record_data[2]);
-
+	strcat(txt_record_all,txt_record_data[3]);
+	strcat(txt_record_all,txt_record_data[4]);
+	//printf("txt_record_all: %s\n", txt_record_all);
 	for (int i = 0; i < txt_num; ++i)
 	{
 		free(txt_record_data[i]);
 	}
 	free(txt_record_data);
-	printf("txt_record_all:\n%s\n\n",txt_record_all);
+	//printf("txt_record_all:\n%s\n\n",txt_record_all);
         load_dns_info2(&dns_info, txt_record_except_signature, txt_record_all, ztls_cert); 
 		SSL_CTX_add_custom_ext(ctx, 53, SSL_EXT_CLIENT_HELLO, dns_info_add_cb, dns_info_free_cb,NULL, NULL,NULL);// extentionTye = 53, Extension_data = dns_cache_id
     	if(dns_info.KeyShareEntry.group == 570){  // keyshare group : 0x001d(X25519)
@@ -377,9 +384,9 @@ static void init_tcp_sync(char *argv[], struct sockaddr_storage * addr, int sock
     struct timespec begin1, begin2;
     clock_gettime(CLOCK_MONOTONIC, &begin1);
     printf("start A and AAAA DNS records query : %f\n",(begin1.tv_sec) + (begin1.tv_nsec) / 1000000000.0);
-    //printf("%s, %s\n",argv[1],argv[3]);
+    printf("%s, %s\n",argv[8],argv[9]);
     //size_t len = resolve_hostname(argv[1], argv[3], addr);
-    size_t len = resolve_hostname(argv[5], argv[6], addr);
+    size_t len = resolve_hostname(argv[8], argv[9], addr);
     clock_gettime(CLOCK_MONOTONIC, &begin2);
     printf("complete A and AAAA DNS records query : %f\n",(begin2.tv_sec) + (begin2.tv_nsec) / 1000000000.0);
 	if(connect(sock, (struct sockaddr*) addr, len) < 0){
@@ -440,7 +447,7 @@ static int txt_query(char *argv[], int txt_num, unsigned char query_txt_buffer[]
     }
 
     //strcat(*txt_record_all,'\0');
-    //printf("txt_record_all: %s\n", txt_record_all);
+   // printf("txt_record_all: %s\n", txt_record_all);
 
 }
 static int tlsa_query(char *argv[], int tlsa_num, unsigned char query_buffer[], int buffer_size, unsigned char ** tlsa_record_all, int * is_start) {
@@ -562,7 +569,7 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
 	//printf("key num: %s\n", tmp);
 	strcat(truncated_dnsmsg_out,tmp);
     dp->KeyShareEntry.group = strtoul(tmp, NULL, 10);
-	printf("dp->KeyshareEntry.group: %d\n",dp->KeyShareEntry.group);	
+	//printf("dp->KeyshareEntry.group: %d\n",dp->KeyShareEntry.group);	
 	tmp = strtok(NULL," ");
 	int skey_dlen = atoi(tmp);
 	printf("skey_dlen: %d\n", skey_dlen);
@@ -573,7 +580,7 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
 	if (token != NULL) {
         	strncpy(tmp, token, sizeof(tmp) - 1); // 첫 토큰을 tmp에 복사
     	}
-	for (int i = 1; i < skey_dlen; i++)
+	for (int i = 0; i < skey_dlen; i++)
 	{
 		token = strtok(NULL, " ");
 		if (token != NULL) {
@@ -584,14 +591,13 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
             // tmp에 안전하게 token_buffer 내용 추가
             		strncat(tmp, token_buf, sizeof(tmp) - strlen(tmp) - 1);
 
-            		printf("tmp #%d %s\n", i, tmp); // 현재 상태 출력
+            	//	printf("tmp #%d %s\n", i, tmp); // 현재 상태 출력
 		}	
 		//strcat(tmp,strtok(NULL," "));
-		//printf("tmp #%d %s\n",i, tmp);
+		printf("tmp #%d %s\n",i, tmp);
 	}
 	printf("publickey: %s\n\n", tmp);
 	strcat(truncated_dnsmsg_out,tmp);
-	
 	//strcat(publickey_prefix, tmp);
 	// load publickey
 	for(int j = 0; j < 1103 ; j=j+64){
@@ -603,7 +609,7 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
 	//strcat(publickey_prefix,"\n");
 	//strcat(publickey_prefix,tmp);
 	strcat(publickey_prefix, publickey_postfix);
-        printf("publickey_prefix: %s\n",publickey_prefix);
+        //printf("publickey_prefix: %s\n",publickey_prefix);
 	bio_key = BIO_new(BIO_s_mem());
  	printf("public key length: %d\n", BIO_puts(bio_key, publickey_prefix));
 
@@ -652,7 +658,7 @@ static int load_dns_info2(struct DNS_info* dp, char* truncated_dnsmsg_out, char*
 	
 	//strtok(NULL," ");
 	tmp = strtok(NULL," ");
-	printf("%s\n", tmp);
+	//printf("%s\n", tmp);
 	strcat(truncated_dnsmsg_out,tmp);
 	//printf("truncated_dnsmsg_out: %s\n\n", truncated_dnsmsg_out);
 	
