@@ -14,7 +14,7 @@
 #define TLSA_NUM 7
 
 #if MODE
-int DNS = 1; 
+int DNS = 1;
 #else
 int DNS = 0;
 #endif
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]){
 	init_openssl();
 	SSL_CTX *ctx = create_context();
 	// static ctx configurations 
-	SSL_CTX_load_verify_locations(ctx, "./dns/cert/dilithium2_crt.pem", "./dns/cert/");
+	SSL_CTX_load_verify_locations(ctx, "../dns/cert/dilithium2_crt.pem", "./dns/cert/");
 	SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL); // SSL_VERIFY_NONE
 	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
 	SSL_CTX_set_keylog_callback(ctx, keylog_callback);
@@ -161,8 +161,9 @@ int main(int argc, char *argv[]){
 	char hex_buffer[7000];
 	
 	int pqtlsa_len[tlsa_num];
-
-	if(argc != 3+tlsa_num){
+	if(DNS==0 && argc==3){
+		printf("TLS 1.3 mode\n");
+	}else if(argc != 3+tlsa_num){
         printf("Usage : %s <port>\n please check number arguments now settled to %d\n", argv[0], TLSA_NUM+2);
         exit(1);
     }
@@ -332,6 +333,8 @@ int main(int argc, char *argv[]){
 		is_start = 1;
 		init_tcp_sync(argc, argv, &addr, sock, &is_start);
     	ssl = SSL_new(ctx);
+    	if(!SSL_set1_groups_list(ssl, "kyber512"))
+			error_handling("fail to set kyber512");
     	SSL_set_wfd(ssl, DNS); // fd : 1 => ZTLS, fd : 0 => TLS 1.3
 	}
 	// threads join
@@ -397,9 +400,9 @@ static void init_tcp_sync(int argc, char *argv[], struct sockaddr_storage * addr
     struct timespec begin1, begin2;
     clock_gettime(CLOCK_MONOTONIC, &begin1);
     printf("start A and AAAA DNS records query : %f\n",(begin1.tv_sec) + (begin1.tv_nsec) / 1000000000.0);
-    printf("%s, %s\n",argv[argc - 2],argv[argc - 1]);
+    printf("%s, %s\n",argv[1],argv[2]);
     //size_t len = resolve_hostname(argv[1], argv[3], addr);
-    size_t len = resolve_hostname(argv[argc - 2], argv[argc - 1], addr);
+    size_t len = resolve_hostname(argv[1], argv[2], addr);
     clock_gettime(CLOCK_MONOTONIC, &begin2);
     printf("complete A and AAAA DNS records query : %f\n",(begin2.tv_sec) + (begin2.tv_nsec) / 1000000000.0);
 	if(connect(sock, (struct sockaddr*) addr, len) < 0){
@@ -423,7 +426,7 @@ static int txt_query(char *argv[], int txt_num, unsigned char query_txt_buffer[]
 	printf("start : %f\n",(begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
 	clock_gettime(CLOCK_MONOTONIC, &begin);
 	printf("start DNS TXT query: %f\n",(begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
-	response = res_search(argv[txt_num], C_IN, type, query_txt_buffer, 4096);
+	response = res_search(argv[txt_num+2], C_IN, type, query_txt_buffer, 4096);
 	// log
 	clock_gettime(CLOCK_MONOTONIC, &begin);
 	printf("complete DNS TXT query : %f\n",(begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
@@ -470,7 +473,7 @@ static int tlsa_query(char *argv[], int tlsa_num, unsigned char query_buffer[], 
 	}
 	printf("pqtlsa_num: %d\n", tlsa_num-1);
 	char query_url[100] = "_443._udp.";
-	strcat(query_url,argv[tlsa_num]);
+	strcat(query_url,argv[tlsa_num+2]);
 	ns_type type2;
 	type2 = ns_t_tlsa;
 	ns_msg nsMsg;
