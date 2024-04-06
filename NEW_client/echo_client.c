@@ -410,6 +410,8 @@ int main(int argc, char *argv[]){
     }
 */	//double execution_time = (total.tv_sec) + (total.tv_nsec) / 1000000000.0;
     double total_runtime = execution_time - start_time;
+    if(DNS)
+	    total_runtime = total_runtime-1; //elemination sleeptime on code
     fprintf(fp, "%f\n", total_runtime);
     printf("total_runtime %f\n", total_runtime);
     SSL_free(ssl);
