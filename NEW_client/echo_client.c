@@ -124,25 +124,22 @@ static void *thread_txt_query(void* arguments)
 	pthread_exit(NULL);
 }
 
-double start_time, execution_time;
 
 int main(int argc, char *argv[]){
 		////////////////INIT BENCH////////////////
 	FILE *fp;
 
-	    fp = fopen("time_measurements.csv", "w");
+	    fp = fopen("time_measurements.csv", "a");
     if (fp == NULL) {
         printf("Error opening file!\n");
         return 1;
 
-    fprintf(fp, "Iteration,TimeInSEC\n");
+    fprintf(fp, "TimeInSEC\n");
     }
     ////////////////INIT BENCH////////////////
-    struct timespec begin;
-    for (int eter = 0; eter<300; eter++){
-
-    	clock_gettime(CLOCK_MONOTONIC, &begin);
-    	start_time = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;
+    struct timespec total;
+    clock_gettime(CLOCK_MONOTONIC, &total);
+    double start_time = (total.tv_sec) + (total.tv_nsec / 1000000000.0);
 	res_init();
 	init_openssl();
 	SSL_CTX *ctx = create_context();
@@ -193,7 +190,8 @@ int main(int argc, char *argv[]){
     // log
     	printf("****start****\n");
 	if (!DNS) {
-
+		struct timespec begin;
+		clock_gettime(CLOCK_MONOTONIC, &begin);
     	printf("start : %f\n",(begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
 	}
 	//=============================================================
@@ -404,15 +402,15 @@ int main(int argc, char *argv[]){
         printf("Message from server: %s", message);
         printf("%f\n",(receive_ctos.tv_sec) + (receive_ctos.tv_nsec) / 1000000000.0);
     }
-*/	execution_time = (send_ctos.tv_sec) + (send_ctos.tv_nsec) / 1000000000.0;
+*/	double execution_time = (total.tv_sec) + (total.tv_nsec / 1000000000.0);
     double total_runtime = execution_time - start_time;
-    fprintf(fp, "%d,%f\n", eter+1, total_runtime);
-    printf("total_runtime #%d, %f\n", eter+1, total_runtime);
+    fprintf(fp, "%f\n", total_runtime);
+    printf("total_runtime %f\n", total_runtime);
     SSL_free(ssl);
     close(sock);
     SSL_CTX_free(ctx);
     EVP_cleanup();
-}
+
 	fclose(fp);
 
     return 0;
