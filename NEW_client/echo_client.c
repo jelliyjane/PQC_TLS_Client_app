@@ -124,6 +124,8 @@ static void *thread_txt_query(void* arguments)
 	pthread_exit(NULL);
 }
 
+double start_time;
+double total_runtime;
 
 int main(int argc, char *argv[]){
 		////////////////INIT BENCH////////////////
@@ -139,7 +141,7 @@ int main(int argc, char *argv[]){
     ////////////////INIT BENCH////////////////
     struct timespec total;
     clock_gettime(CLOCK_MONOTONIC, &total);
-    double start_time = (total.tv_sec) + (total.tv_nsec / 1000000000.0);
+    double start_time = (total.tv_sec) + (total.tv_nsec) / 1000000000.0;
 	res_init();
 	init_openssl();
 	SSL_CTX *ctx = create_context();
@@ -360,6 +362,8 @@ int main(int argc, char *argv[]){
      * handshake start
      */
     configure_connection(ssl); // SSL do handshake
+    clock_gettime(CLOCK_MONOTONIC, &total);
+    double execution_time = (total.tv_sec) + (total.tv_nsec) / 1000000000.0; //for bench
     char message[BUF_SIZE];
     int str_len;
     struct timespec send_ctos, receive_ctos;
@@ -379,6 +383,8 @@ int main(int argc, char *argv[]){
 		clock_gettime(CLOCK_MONOTONIC, &receive_ctos);
 		printf("Message from server: %s", message);
 		printf("%f\n",(receive_ctos.tv_sec) + (receive_ctos.tv_nsec) / 1000000000.0);
+		clock_gettime(CLOCK_MONOTONIC, &total);
+		execution_time = (total.tv_sec) + (total.tv_nsec) / 1000000000.0; //for bench
     }
 /* Temporarily deleted for performance measurement
     while(1){
@@ -402,7 +408,7 @@ int main(int argc, char *argv[]){
         printf("Message from server: %s", message);
         printf("%f\n",(receive_ctos.tv_sec) + (receive_ctos.tv_nsec) / 1000000000.0);
     }
-*/	double execution_time = (total.tv_sec) + (total.tv_nsec / 1000000000.0);
+*/	//double execution_time = (total.tv_sec) + (total.tv_nsec) / 1000000000.0;
     double total_runtime = execution_time - start_time;
     fprintf(fp, "%f\n", total_runtime);
     printf("total_runtime %f\n", total_runtime);
@@ -422,6 +428,7 @@ static void init_tcp_sync(int argc, char *argv[], struct sockaddr_storage * addr
     struct timespec begin1, begin2;
     clock_gettime(CLOCK_MONOTONIC, &begin1);
     printf("start A and AAAA DNS records query : %f\n",(begin1.tv_sec) + (begin1.tv_nsec) / 1000000000.0);
+    start_time = (begin1.tv_sec) + (begin1.tv_nsec) / 1000000000.0;
     printf("%s, %s\n",argv[1],argv[2]);
     //size_t len = resolve_hostname(argv[1], argv[3], addr);
     size_t len = resolve_hostname(argv[1], argv[2], addr);
