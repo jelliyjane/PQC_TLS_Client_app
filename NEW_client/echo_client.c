@@ -11,7 +11,7 @@
 
 #define BUF_SIZE 10000
 #define TXT_NUM 5
-#define TLSA_NUM 7
+#define TLSA_NUM 4
 
 #if MODE
 int DNS = 1;
@@ -181,8 +181,8 @@ int main(int argc, char *argv[]){
 	int pqtlsa_len[tlsa_num];
 	if(DNS==0 && argc==3){
 		printf("TLS 1.3 mode\n");
-	}else if(argc != 3+tlsa_num){
-        printf("Usage : %s <port>\n please check number arguments now settled to %d\n", argv[0], TLSA_NUM+2);
+	}else if(argc <= 3+tlsa_num && argc <= 3+txt_num){
+        printf("Usage : %s <port>\n please check number arguments", argv[0]);
         exit(1);
     }
 
