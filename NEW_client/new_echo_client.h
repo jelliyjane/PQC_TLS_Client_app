@@ -33,4 +33,6 @@
 #include "/usr/local/include/openssl/bio.h"
 #include "/usr/local/include/openssl/ssl.h"
 #include "/usr/local/include/openssl/err.h"
+#include "/usr/local/include/openssl/pem.h"
+#include "/usr/local/include/openssl/x509.h"
 #endif //TLS13_ECHO_ECHO_CLIENT_H
