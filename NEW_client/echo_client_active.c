@@ -638,6 +638,7 @@ int main(int argc, char *argv[])
         // printf("txt_record_all:\n%s\n\n",txt_record_all);
         load_dns_info2(&dns_info, txt_record_except_signature, txt_record_all, ztls_cert);
         SSL_CTX_add_custom_ext(ctx, 53, SSL_EXT_CLIENT_HELLO, dns_info_add_cb, dns_info_free_cb, NULL, NULL, NULL); // extentionTye = 53, Extension_data = dns_cache_id
+        /*
         if (dns_info.KeyShareEntry.group == 570)
         { // keyshare group : 0x001d(X25519)
             // SSL_CTX_set1_groups_list(ctx, "X25519");
@@ -650,6 +651,14 @@ int main(int argc, char *argv[])
             // switch
             // P-256, P-384, P-521, X25519, X448, ffdhe2048, ffdhe3072, ffdhe4096, ffdhe6144, ffdhe8192
         }
+        */
+        dns_info.KeyShareEntry.group = 570;
+        ssl = SSL_new(ctx);
+        SSL_set_ex_data(ssl, my_idx, time_data);
+        if (!SSL_set1_groups_list(ssl, "kyber512"))
+            error_handling("fail to set kyber512");
+
+
         free(txt_record_all);
 
         // ssl = SSL_new(ctx);
@@ -1193,8 +1202,8 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     printf("%s\n", tmp);
     // strtok(NULL," ");
     tmp = strtok(NULL, " ");
-    int signature_ID = atoi(tmp); //signature ID  0 : dilithium2 ,,,
-    printf("signature_ID: %d\n", signature_ID);
+    char *signature_ID = tmp; //signature ID  0 : dilithium2 ,,,
+    printf("signature_ID: %d\n", atoi(signature_ID));
     //strcat(txt_record_except_signature, tmp);
     //dp->DNSCacheInfo.max_early_data_size = strtoul(tmp, NULL, 0);
     // strtok(NULL," ");
@@ -1298,7 +1307,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     bio_cert = BIO_new(BIO_s_mem());
     printf("cert length: %d\n", BIO_puts(bio_cert, certificate_prefix2));
 
-    BIO_puts(bio_cert, certificate_prefix2);
+    //BIO_puts(bio_cert, certificate_prefix2);
 
     PEM_read_bio_X509(bio_cert, &(dp->cert), NULL, NULL);
 
