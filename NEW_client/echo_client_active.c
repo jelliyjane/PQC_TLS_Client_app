@@ -67,6 +67,29 @@ int verify_self_signed_cert(X509 *cert)
     return 0;
 }
 
+static int ext_add_cb(SSL *s, unsigned int ext_type,
+                      const unsigned char **out,
+                      size_t *outlen, int *al, void *add_arg)
+{
+    switch (ext_type) {
+        case 65280:
+            printf("ext_add_cb from client called!\n");
+            break;
+
+        default:
+            break;
+    }
+    return 1;
+}
+
+static void ext_free_cb(SSL *s, unsigned int ext_type,
+                        const unsigned char *out, void *add_arg)
+{
+    printf("ext_free_cb from client called\n");
+
+}
+
+
 void info_callback(const SSL *ssl, int where, int ret)
 {
     OSSL_HANDSHAKE_STATE state = SSL_get_state(ssl);
@@ -653,6 +676,7 @@ int main(int argc, char *argv[])
         }
         */
         dns_info.KeyShareEntry.group = 570;
+        int result_cb = SSL_CTX_add_client_custom_ext(ctx, 65280, ext_add_cb, ext_free_cb, NULL, ext_parse_cb, NULL);
         ssl = SSL_new(ctx);
         SSL_set_ex_data(ssl, my_idx, time_data);
         if (!SSL_set1_groups_list(ssl, "kyber512"))
