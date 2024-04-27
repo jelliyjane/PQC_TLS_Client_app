@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#PROGRAM="./new_client ns1.esplab.io 12451 ns1.dil2.0.esplab.io ns1.dil2.1.esplab.io ns1.dil2.2.esplab.io ns1.dil2.3.esplab.io ns1.dil2.4.esplab.io ns1.dil2.5.esplab.io ns1.dil2.6.esplab.io "
+#PROGRAM="./tls_client ns1.esplab.io 12451 dil3"
 PROGRAM="./tls_client ns1.esplab.io 12451"
 
 #!/bin/bash
 
-for i in {1..300}
+for i in {1..100}
 do
    echo "Execution $i"
    $PROGRAM
