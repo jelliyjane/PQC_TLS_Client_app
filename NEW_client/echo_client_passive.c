@@ -234,6 +234,29 @@ void log_times(double aquerytime, double txtquerytime, double tlsaquerytime, dou
 double start_time;
 double total_runtime;
 
+static int ext_add_cb(SSL *s, unsigned int ext_type,
+                      const unsigned char **out,
+                      size_t *outlen, int *al, void *add_arg)
+{
+    switch (ext_type) {
+        case 65280:
+            printf("ext_add_cb from client called!\n");
+            break;
+
+        default:
+            break;
+    }
+    return 1;
+}
+
+static void ext_free_cb(SSL *s, unsigned int ext_type,
+                        const unsigned char *out, void *add_arg)
+{
+    printf("ext_free_cb from client called\n");
+
+}
+
+
 int main(int argc, char *argv[]){
 		////////////////INIT BENCH////////////////
 
@@ -249,7 +272,7 @@ int main(int argc, char *argv[]){
         fprintf(fp, "DNS A Query Time,DNS TXT Query Time,DNS TLSA Query Time,DNS Total Query Time,SSL Handshake Start,Send Client Hello,Receive Certificate,SSL Handshake Finish\n");
     }
     fseek(fp, 0, SEEK_SET);
-    
+
     ////////////////INIT BENCH////////////////
     struct timespec total;
     clock_gettime(CLOCK_MONOTONIC, &total);
@@ -501,6 +524,7 @@ int main(int argc, char *argv[]){
 		SSL_CTX_add_custom_ext(ctx, 53, SSL_EXT_CLIENT_HELLO, dns_info_add_cb, dns_info_free_cb,NULL, NULL,NULL);// extentionTye = 53, Extension_data = dns_cache_id
     	if(dns_info.KeyShareEntry.group == 570){  // keyshare group : 0x001d(X25519)
 			//SSL_CTX_set1_groups_list(ctx, "X25519");
+			
 			ssl = SSL_new(ctx);
             SSL_set_ex_data(ssl, my_idx, timing_data);
 		if(!SSL_set1_groups_list(ssl, "kyber512"))
@@ -510,6 +534,7 @@ int main(int argc, char *argv[]){
 			// P-256, P-384, P-521, X25519, X448, ffdhe2048, ffdhe3072, ffdhe4096, ffdhe6144, ffdhe8192
     	}else{
         dns_info.KeyShareEntry.group = 570;
+        int result_cb = SSL_CTX_add_client_custom_ext(ctx, 65280, ext_add_cb, ext_free_cb, NULL, ext_parse_cb, NULL);
         ssl = SSL_new(ctx);
         SSL_set_ex_data(ssl, my_idx, timing_data);
         if (!SSL_set1_groups_list(ssl, "kyber512"))

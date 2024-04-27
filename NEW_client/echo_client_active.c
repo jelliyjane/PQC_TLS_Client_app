@@ -137,7 +137,7 @@ void info_callback(const SSL *ssl, int where, int ret)
             time_data->hand_time = duration;
         }
     }
-}
+} 
 
 struct DNS_info
 {
@@ -413,7 +413,7 @@ int main(int argc, char *argv[])
             pthread_create(ptid_pqtlsa + i, NULL, &thread_tlsa_query, (void *)(args2 + i));
         }
         // A thread is created when a program is executed, and is executed when a user triggers
-        //	sleep(1);
+        //  sleep(1);
         is_start = 1;
          sleep(1);
         is_start = 1;
@@ -505,7 +505,7 @@ int main(int argc, char *argv[])
             }
 
             pthread_t ptid_txt[txt_num_aid];
-            //	pthread_mutex_init(&mutex,NULL);
+            //  pthread_mutex_init(&mutex,NULL);
             for (int i = 0; i < txt_num_aid; ++i)
             {
                 pthread_create(ptid_txt + i, NULL, &thread_txt_query_retry, (void *)(args3_aid + i));
@@ -516,7 +516,7 @@ int main(int argc, char *argv[])
                 pthread_join(ptid_txt[i], NULL);
             }
 
-            //	pthread_mutex_destroy(&mutex);
+            //  pthread_mutex_destroy(&mutex);
             *txt_record_all = '\0';
             txt_record_all_aid[0] = '\0';
             printf("txt_record_all_aid: %s\n", txt_record_all_aid);
@@ -647,9 +647,9 @@ int main(int argc, char *argv[])
         }
         printf("ztls_cert:\n%s", ztls_cert);
 
-        //	for (int i = 0; i < tlsa_num_aid; ++i) {
+        //  for (int i = 0; i < tlsa_num_aid; ++i) {
         //    free(pqtlsa_record_all_aid[i]); // 개별 요소(가 동적으로 할당된 경우) 해제
-        //	}
+        //  }
         free(pqtlsa_record_all_aid);
 
         printf("txt_record_all: %s\n", txt_record_all);
@@ -699,7 +699,7 @@ int main(int argc, char *argv[])
             printf("Not Valid Period\n");
         }
 
-        //	X509_print_ex_fp(stdout, dns_info.cert, XN_FLAG_COMPAT, X509_FLAG_COMPAT);
+        //  X509_print_ex_fp(stdout, dns_info.cert, XN_FLAG_COMPAT, X509_FLAG_COMPAT);
         printf("return of server public key: %d\n", SSL_use_PrivateKey(ssl, dns_info.KeyShareEntry.skey)); // set server's keyshare // this function is modified
         verify_self_signed_cert(dns_info.cert);
 
@@ -815,6 +815,8 @@ static void init_tcp_sync(int argc, char *argv[], struct sockaddr_storage *addr,
     size_t len = resolve_hostname(argv[1], argv[2], addr);
     clock_gettime(CLOCK_MONOTONIC, &begin2);
     printf("complete A and AAAA DNS records query : %f\n", (begin2.tv_sec) + (begin2.tv_nsec) / 1000000000.0);
+    double ending = (begin2.tv_sec) + (begin2.tv_nsec) / 1000000000.0;
+
     if (connect(sock, (struct sockaddr *)addr, len) < 0)
     {
         error_handling("connect() error!");
@@ -1232,16 +1234,16 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     //dp->DNSCacheInfo.max_early_data_size = strtoul(tmp, NULL, 0);
     // strtok(NULL," ");
     char *signature_length = strtok(NULL, " ");
-   	int sig_len = atoi(signature_length);
+    int sig_len = atoi(signature_length);
     printf("sig_len: %d\n", sig_len);
     //strcat(txt_record_except_signature, tmp);
     // printf("id: %s\n", tmp);
     //strcat(txt_record_except_signature, tmp);
-  	// dp->DNSCacheInfo.dns_cache_id = strtoul(tmp, NULL, 0);
+    // dp->DNSCacheInfo.dns_cache_id = strtoul(tmp, NULL, 0);
     // strtok(NULL," ");
     int skey_dlen = sig_len/180;
     if (sig_len%180 != 0)
-    	skey_dlen++;
+        skey_dlen++;
      printf("skey_dlen: %d\n", skey_dlen);
     // load keyshare entry
  //   tmp = strtok(NULL, " ");
@@ -1254,7 +1256,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
    // printf("skey_dlen: %d\n", skey_dlen);
     // tmp = strtok(NULL," ");
     if (algorithm_ID == 1){ // if KEMTLS
-    	printf("KEMTLS data detected\n");
+        printf("KEMTLS data detected\n");
     char token_buf[500];
     char *token;
     tmp = strtok(NULL, " ");
@@ -1272,7 +1274,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
             token_buf[sizeof(token_buf) - 1] = '\0';
             strncat(tmp, token_buf, sizeof(tmp) - strlen(tmp) - 1);
 
-            //	printf("tmp #%d %s\n", i, tmp);
+            //  printf("tmp #%d %s\n", i, tmp);
         }
         // strcat(tmp,strtok(NULL," "));
         // printf("tmp #%d %s\n",i, tmp);
@@ -1305,7 +1307,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
         printf("pem read bio pubkey err\n");
     }
     }
-	free(publickey_prefix);
+    free(publickey_prefix);
     // load certificate
     /*
     char *begin_cert = "B_CERTIFICATE";
@@ -1356,7 +1358,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     strcat(txt_record_except_signature, signature_length);
     printf("txt_record_except_signature: %s\n\n", txt_record_except_signature);
 
-    //	load TXT signature (cert verify)
+    //  load TXT signature (cert verify)
     //printf("signature_algorithms: %s\n", tmp);
     char *sig_ID = "65184";
     dp->CertVerifyEntry.signature_algorithms = strtoul(sig_ID, NULL, 0); // need to fix 
