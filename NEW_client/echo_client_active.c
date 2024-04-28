@@ -8,6 +8,8 @@
 #include <pthread.h>
 #include <netdb.h>
 
+FILE *fp;
+
 #define BUF_SIZE 10000
 #define TLSA_NUM 8
 #define TXT_NUM 8
@@ -26,8 +28,22 @@ static int my_idx = -1;
 
 typedef struct
 {
-    double hand_time;
-} DiliveryTime;
+    double handshake_start;
+    double handshake_end;
+    double cert_received;
+    double send_client_hello;
+
+} DeliveryTime;
+
+double aquerytime = 0;
+double txtquerytime = 0;
+double tlsaquerytime = 0;
+double totalquerytime = 0;
+double txt_before = 0;
+double txt_after = 0;
+double tlsa_before = 0;
+double tlsa_after = 0;
+double a_before = 0;
 
 int verify_self_signed_cert(X509 *cert)
 {
@@ -55,7 +71,7 @@ int verify_self_signed_cert(X509 *cert)
     {
         BIO_set_fp(bio2, stdout, BIO_NOCLOSE);
 
-        // EVP_PKEY 객체를 PEM 형식으로 변환하여 BIO(여기서는 표준 출력)에 쓴다.
+
         if (!PEM_write_bio_PUBKEY(bio2, pubkey))
         {
             fprintf(stderr, "Error writing public key to standard output\n");
@@ -67,77 +83,43 @@ int verify_self_signed_cert(X509 *cert)
     return 0;
 }
 
-static int ext_add_cb(SSL *s, unsigned int ext_type,
-                      const unsigned char **out,
-                      size_t *outlen, int *al, void *add_arg)
-{
-    switch (ext_type) {
-        case 65280:
-            printf("ext_add_cb from client called!\n");
-            break;
-
-        default:
-            break;
-    }
-    return 1;
-}
-
-static void ext_free_cb(SSL *s, unsigned int ext_type,
-                        const unsigned char *out, void *add_arg)
-{
-    printf("ext_free_cb from client called\n");
-
-}
-
-
 void info_callback(const SSL *ssl, int where, int ret)
 {
     OSSL_HANDSHAKE_STATE state = SSL_get_state(ssl);
-    struct timespec start_time;
-    if (state == TLS_ST_CW_CLNT_HELLO)
-    {
+    DeliveryTime *timing_data = (DeliveryTime *)SSL_get_ex_data(ssl, my_idx);
 
-        clock_gettime(CLOCK_MONOTONIC, &start_time);
-        printf("TLS_ST_CW_CLNT_HELLO: %f\n", (start_time.tv_sec) + (start_time.tv_nsec) / 1000000000.0);
-        double current_time = (start_time.tv_sec + (start_time.tv_nsec) / 1000000000.0);
-    }
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+    double now = current_time.tv_sec + (current_time.tv_nsec / 1000000000.0);
 
     if (where & SSL_CB_HANDSHAKE_START)
     {
-        // 핸드셰이크 시작 시간 측정
-
-        struct timespec start_time;
-        clock_gettime(CLOCK_MONOTONIC, &start_time);
-        printf("SSL_CB_HANDSHAKE_START: %f\n", (start_time.tv_sec) + (start_time.tv_nsec) / 1000000000.0);
-        double start = (start_time.tv_sec + (start_time.tv_nsec) / 1000000000.0);
-
-        // SSL 객체에 시작 시간 저장
-        SSL_set_ex_data(ssl, start_time_idx, (void *)(uintptr_t)start);
+        if(!timing_data->handshake_start){
+        timing_data->handshake_start = now;
+        printf("\nPeriod1: SSL_CB_HANDSHAKE_START: %f\n", timing_data->handshake_start );
+        }
     }
+
+    if (state == TLS_ST_CW_CLNT_HELLO)
+    {
+        timing_data->send_client_hello = now;
+        printf("\nPeriod2: TLS_ST_CW_CLNT_HELLO: %f\n", timing_data->send_client_hello);
+    }
+    
+    if (state == TLS_ST_CR_CERT_VRFY)
+   {
+        timing_data->cert_received = now;
+        printf("\nPeriod3: TLS_ST_CR_CERT_VRFY: %f\n", timing_data->cert_received);
+    }
+
 
     if (where & SSL_CB_HANDSHAKE_DONE)
     {
-        // 핸드셰이크 종료 시간 측정
-
-        struct timespec end_time;
-        clock_gettime(CLOCK_MONOTONIC, &end_time);
-        printf("SSL_CB_HANDSHAKE_DONE: %f\n", (end_time.tv_sec) + (end_time.tv_nsec) / 1000000000.0);
-        double end = (end_time.tv_sec + (end_time.tv_nsec) / 1000000000.0);
-
-        // SSL 객체에서 시작 시간 가져오기
-        double start = (double)(uintptr_t)SSL_get_ex_data(ssl, start_time_idx);
-
-        // 핸드셰이크에 걸린 시간 계산
-        double duration = end - start;
-
-        // DiliveryTime 구조체에 핸드셰이크 시간 저장
-        DiliveryTime *time_data = (DiliveryTime *)SSL_get_ex_data(ssl, my_idx);
-        if (time_data != NULL)
-        {
-            time_data->hand_time = duration;
-        }
+        timing_data->handshake_end = now;
+        printf("\nPeriod4: SSL_CB_HANDSHAKE_DONE: %f\n", timing_data->handshake_end);
     }
-} 
+}
+
 
 struct DNS_info
 {
@@ -266,25 +248,58 @@ static void *thread_txt_query_retry(void *arguments)
     txt_query_retry(args->argv, args->txt_num, args->total_txt_num, args->txt_query_buffer, args->txt_record_data);
     pthread_exit(NULL);
 }
+void log_times(double aquerytime, double txtquerytime, double tlsaquerytime, double totalquerytime,
+               double handshake_start, double send_client_hello, double cert_received, double handshake_end) {
+    fprintf(fp, "%f,%f,%f,%f,%f,%f,%f,%f\n",
+            aquerytime, txtquerytime, tlsaquerytime, totalquerytime,
+            handshake_start, send_client_hello, cert_received, handshake_end);
+}
+
+struct timespec point;
 
 double start_time;
 double total_runtime;
 
-int main(int argc, char *argv[])
+static int ext_add_cb(SSL *s, unsigned int ext_type,
+                      const unsigned char **out,
+                      size_t *outlen, int *al, void *add_arg)
 {
+    switch (ext_type) {
+        case 65280:
+            printf("ext_add_cb from client called!\n");
+            break;
+
+        default:
+            break;
+    }
+    return 1;
+}
+
+static void ext_free_cb(SSL *s, unsigned int ext_type,
+                        const unsigned char *out, void *add_arg)
+{
+    printf("ext_free_cb from client called\n");
+
+}
+
+int main(int argc, char *argv[]){
 
     ////////////////INIT BENCH////////////////
-    FILE *fp;
 
-    fp = fopen("time_measurements.csv", "a");
-    if (fp == NULL)
-    {
+    fp = fopen("time_measurements.csv", "a+");
+    if (fp == NULL) {
         printf("Error opening file!\n");
         return 1;
-
-        fprintf(fp, "TimeInSEC\n");
     }
-    ////////////////INIT BENCH////////////////
+    fseek(fp, 0, SEEK_END);
+    long filesize = ftell(fp); 
+
+    if (filesize == 0) {
+        fprintf(fp, "DNS A Query Time,DNS TXT Query Time,DNS TLSA Query Time,DNS Total Query Time,SSL Handshake Start,Send Client Hello,Receive Certificate,SSL Handshake Finish\n");
+    }
+    fseek(fp, 0, SEEK_SET);   
+
+     ////////////////INIT BENCH////////////////
     struct timespec total;
     clock_gettime(CLOCK_MONOTONIC, &total);
     double start_time = (total.tv_sec) + (total.tv_nsec) / 1000000000.0;
@@ -301,7 +316,8 @@ int main(int argc, char *argv[])
     SSL_CTX_set_info_callback(ctx, info_callback);
     SSL *ssl = NULL;
 
-    DiliveryTime *time_data = malloc(sizeof(DiliveryTime));
+    DeliveryTime *timing_data = malloc(sizeof(DeliveryTime));
+    memset(timing_data, 0, sizeof(DeliveryTime));
 
     int sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sock < 0)
@@ -341,14 +357,15 @@ int main(int argc, char *argv[])
     // get TXT record & dynamic ctx configurations for ZTLS
     if (DNS)
     {
+        struct timespec begin;
         _res.options = _res.options | RES_USE_EDNS0; // use EDNS0
         unsigned char query_txt_buffer[txt_num][5000];
         char **txt_record_data;
         char *txt_record_all;
         char *txt_record_all_aid;
         unsigned char **pqtlsa_record_all_aid = NULL;
-        txt_record_all = (char *)calloc(8000, sizeof(char));
-        txt_record_all_aid = (char *)calloc(15000, sizeof(char));
+        txt_record_all = (char *)calloc(60000, sizeof(char));
+        txt_record_all_aid = (char *)calloc(60000, sizeof(char));
         txt_record_data = (char **)malloc(sizeof(char *) * txt_num);
         for (int i = 0; i < txt_num; ++i)
         {
@@ -406,7 +423,10 @@ int main(int argc, char *argv[])
         }
         pthread_t ptid_pqtlsa[tlsa_num];
 
+
         pthread_mutex_init(&mutex, NULL);
+        clock_gettime(CLOCK_MONOTONIC, &begin);
+        double starting2 = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;
 
         for (int i = 0; i < tlsa_num; ++i)
         {
@@ -415,26 +435,43 @@ int main(int argc, char *argv[])
         // A thread is created when a program is executed, and is executed when a user triggers
         //  sleep(1);
         is_start = 1;
-         sleep(1);
+        sleep(1);
         is_start = 1;
+
+        clock_gettime(CLOCK_MONOTONIC, &begin);
+        double starting = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;  
+
         pthread_t ptid_txt[txt_num];
         for (int i = 0; i < txt_num; ++i)
         {
             pthread_create(ptid_txt + i, NULL, &thread_txt_query, (void *)(args3 + i));
         }
 
-        for (int i = 0; i < tlsa_num; ++i)
-        {
-            pthread_join(ptid_pqtlsa[i], (void **)(pqtlsa_len + i));
-        }
-
         for (int i = 0; i < txt_num; ++i)
         {
             pthread_join(ptid_txt[i], NULL);
         }
+        
+        clock_gettime(CLOCK_MONOTONIC, &begin);
+        double ending = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;   
+        txtquerytime = ending - starting;
+
+        for (int i = 0; i < tlsa_num; ++i)
+        {
+            pthread_join(ptid_pqtlsa[i], (void **)(pqtlsa_len + i));
+        }
+        clock_gettime(CLOCK_MONOTONIC, &begin);
+        ending = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;   
+        tlsaquerytime = ending - starting2 -1;
+
+
         // pthread_join(ptid_txt[0], NULL);
 
         pthread_mutex_destroy(&mutex);
+        clock_gettime(CLOCK_MONOTONIC, &begin);
+        ending = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;   
+        tlsaquerytime = ending - starting2 -1;
+
         printf("total_txt_num:");
         for (int i = 0; i < txt_num; i++)
         {
@@ -442,7 +479,7 @@ int main(int argc, char *argv[])
         }
         printf("\n");
 
-        char active_txt[sizeof(char) * 5000];
+        char active_txt[sizeof(char) * 70000];
         strcpy(active_txt, txt_record_data[0]);
 
         // printf("txt_passive_data: %s\n", txt_passive.txt_record_data);
@@ -488,7 +525,7 @@ int main(int argc, char *argv[])
             txt_record_data_aid = (char **)malloc(sizeof(char *) * txt_num_aid);
             for (int i = 0; i < txt_num_aid; ++i)
             {
-                txt_record_data_aid[i] = (char *)malloc(sizeof(char) * 5000);
+                txt_record_data_aid[i] = (char *)malloc(sizeof(char) * 50000);
                 txt_record_data_aid[i][0] = '\0';
             }
 
@@ -519,19 +556,23 @@ int main(int argc, char *argv[])
             //  pthread_mutex_destroy(&mutex);
             *txt_record_all = '\0';
             txt_record_all_aid[0] = '\0';
-            printf("txt_record_all_aid: %s\n", txt_record_all_aid);
+          //  printf("txt_record_all_aid: %s\n", txt_record_all_aid);
             for (int i = 0; i < txt_num_aid; i++)
             {
                 strcat(txt_record_all_aid, txt_record_data_aid[i]);
             }
-            printf("txt_record_all_aid2: %s\n", txt_record_all_aid);
+         //   printf("txt_record_all_aid2: %s\n", txt_record_all_aid);
             for (int i = 0; i < txt_num_aid; ++i)
             {
                 free(txt_record_data_aid[i]);
             }
+                    
+            clock_gettime(CLOCK_MONOTONIC, &begin);
+            ending = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;   
+            txtquerytime = ending - starting;
         }
 
-        printf("txt_record_data 1: %s\n", txt_record_data[0]);
+      //  printf("txt_record_data 1: %s\n", txt_record_data[0]);
         // printf("txt_record_data 2: %s\n", txt_record_data[1]);
 
         if (tlsa_num_total > TLSA_NUM)
@@ -576,7 +617,9 @@ int main(int argc, char *argv[])
             {
                 pthread_join(ptid_pqtlsa_aid[i], (void **)(pqtlsa_len_aid + i + TLSA_NUM));
             }
-
+            clock_gettime(CLOCK_MONOTONIC, &begin);
+            ending = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;   
+            tlsaquerytime = ending - starting2 -1;
             for (int i = 0; i < tlsa_num_total; i++)
             {
                 printf("Length of record aid %d: %d\n", i, *(pqtlsa_len_aid_ptr + i));
@@ -584,7 +627,7 @@ int main(int argc, char *argv[])
 
             for (int i = 0; i < TLSA_NUM; i++)
             {
-                printf("11111\n");
+        //        printf("11111\n");
 
                 pqtlsa_len_aid[i] = pqtlsa_len[i];
                 pqtlsa_record_all_aid[i] = pqtlsa_record_all[i];
@@ -592,13 +635,16 @@ int main(int argc, char *argv[])
 
             for (int i = 0; i < tlsa_num_total; i++)
             {
-                printf("Length of record aid %d: %d\n", i, pqtlsa_len_aid[i]);
+     //           printf("Length of record aid %d: %d\n", i, pqtlsa_len_aid[i]);
             }
             pqtlsa_len_ptr = pqtlsa_len_aid_ptr;
 
             pqtlsa_record_all_ptr = pqtlsa_record_all_aid;
         }
         // pthread_mutex_destroy(&mutex);
+  
+
+        totalquerytime = ending - starting2 -1;
         // fd
         // printf("ztls_cert: \n%s\n", ztls_cert);
 
@@ -607,18 +653,18 @@ int main(int argc, char *argv[])
         char txt_record_except_signature[BUF_SIZE] = "";
         for (int i = 0; i < txt_num; i++)
         {
-            printf("txt_record_data[%d]: %s\n", i, txt_record_data[i]);
+   //         printf("txt_record_data[%d]: %s\n", i, txt_record_data[i]);
             strcat(txt_record_all, txt_record_data[i]);
         }
         if (txt_record_all_aid != NULL)
         {
-            printf("cat record all aid\n");
+//            printf("cat record all aid\n");
             strcat(txt_record_all, txt_record_all_aid);
         }
 
         for (int i = 0; i < tlsa_num_total; i++)
         {
-            printf("Length of record %d: %d\n", i, *(pqtlsa_len_ptr + i));
+//            printf("Length of record %d: %d\n", i, *(pqtlsa_len_ptr + i));
         }
 
         /*
@@ -636,7 +682,7 @@ int main(int argc, char *argv[])
         // based64_out = hex_to_base64(tlsa2_record_all, tlsa2_len, hex_buffer);
         char newline2[4] = "\n";
         char *ztls_cert;
-        ztls_cert = (char *)malloc(sizeof(char) * 7000);
+        ztls_cert = (char *)malloc(sizeof(char) * 70000);
         // for(int j = 0; j < 916-64 ; j=j+64){ 908
 
         for (int j = 0; j < 5312; j = j + 64)
@@ -645,14 +691,14 @@ int main(int argc, char *argv[])
             strcat(ztls_cert, newline2);
             // printf("hex_out_cert: %s", ztls_cert);
         }
-        printf("ztls_cert:\n%s", ztls_cert);
+//        printf("ztls_cert:\n%s", ztls_cert);
 
         //  for (int i = 0; i < tlsa_num_aid; ++i) {
         //    free(pqtlsa_record_all_aid[i]); // 개별 요소(가 동적으로 할당된 경우) 해제
         //  }
         free(pqtlsa_record_all_aid);
 
-        printf("txt_record_all: %s\n", txt_record_all);
+//        printf("txt_record_all: %s\n", txt_record_all);
         for (int i = 0; i < txt_num; ++i)
         {
             free(txt_record_data[i]);
@@ -678,7 +724,7 @@ int main(int argc, char *argv[])
         dns_info.KeyShareEntry.group = 570;
         int result_cb = SSL_CTX_add_client_custom_ext(ctx, 65280, ext_add_cb, ext_free_cb, NULL, ext_parse_cb, NULL);
         ssl = SSL_new(ctx);
-        SSL_set_ex_data(ssl, my_idx, time_data);
+        SSL_set_ex_data(ssl, my_idx, timing_data);
         if (!SSL_set1_groups_list(ssl, "kyber512"))
             error_handling("fail to set kyber512");
 
@@ -702,13 +748,18 @@ int main(int argc, char *argv[])
         //  X509_print_ex_fp(stdout, dns_info.cert, XN_FLAG_COMPAT, X509_FLAG_COMPAT);
         printf("return of server public key: %d\n", SSL_use_PrivateKey(ssl, dns_info.KeyShareEntry.skey)); // set server's keyshare // this function is modified
         verify_self_signed_cert(dns_info.cert);
+        BIO *bio_file = BIO_new(BIO_s_file());
+        const char *cert_filename = "../dns/cert/dilithium5_crt.pem";
+        BIO_read_filename(bio_file, cert_filename);  // 인증서 파일 경로
+        dns_info.cert = PEM_read_bio_X509(bio_file, NULL, NULL, NULL);
+
 
         printf("return of ssl_use_certificate: %d\n", SSL_use_certificate(ssl, dns_info.cert)); // set sever's cert and verify cert_chain // this function is modified
         if (dns_info.CertVerifyEntry.signature_algorithms == 65184)                             // rsa pss rsae sha256 0x0804 //dilithium2 65184
         {
             strcat(txt_record_except_signature, "\n");
             printf("txt_record_except_signature\n");
-            printf("%s", txt_record_except_signature);
+     //       printf("%s", txt_record_except_signature);
 
             strcat(dns_info.CertVerifyEntry.cert_verify, "\n");
             // printf("\ndns_info.CertVerifyEntry.cert_verify\n");
@@ -724,6 +775,7 @@ int main(int argc, char *argv[])
         is_start = 1;
         init_tcp_sync(argc, argv, &addr, sock, &is_start);
         ssl = SSL_new(ctx);
+        SSL_set_ex_data(ssl, my_idx, timing_data);
         if (!SSL_set1_groups_list(ssl, "kyber512"))
             error_handling("fail to set kyber512");
         SSL_set_wfd(ssl, DNS); // fd : 1 => ZTLS, fd : 0 => TLS 1.3
@@ -740,7 +792,7 @@ int main(int argc, char *argv[])
     char message[BUF_SIZE];
     int str_len;
     struct timespec send_ctos, receive_ctos;
-    printf("callback: %f\n", time_data->hand_time);
+   // printf("callback: %f\n", time_data->hand_time);
 
     if (!DNS)
     { // normal TLS 1.3
@@ -786,16 +838,32 @@ int main(int argc, char *argv[])
         }
     */
     // double execution_time = (total.tv_sec) + (total.tv_nsec) / 1000000000.0;
-    double total_runtime = execution_time - start_time;
-    if (DNS)
-        total_runtime = total_runtime - 1; // elemination sleeptime on code
-    fprintf(fp, "%f\n", total_runtime);
+    txtquerytime = txt_after - txt_before;
+    tlsaquerytime = tlsa_after - tlsa_before;
+    totalquerytime = MAX(txt_after, tlsa_after) - MIN(txt_before, a_before);
+
+    if(DNS)
+        total_runtime = total_runtime-1; //elemination sleeptime on code
+    //fprintf(fp, "%f\n", total_runtime);
     printf("total_runtime %f\n", total_runtime);
+    printf("==========================result===========================\n");
+    printf("\nDNS A query time: %f\n", aquerytime);
+    printf("\nDNS TXT query time: %f\n", txtquerytime);
+    printf("\nDNS TLSA query time: %f\n", tlsaquerytime);
+    printf("\nDNS total query / response time: %f\n", totalquerytime);
+    printf("\nPeriod1: SSL_CB_HANDSHAKE_START: %f\n", timing_data->handshake_start );
+    printf("\nPeriod2: Send client hello: %f\n", timing_data->send_client_hello );
+    printf("\nPeriod3: Recieve certificate: %f\n", timing_data->cert_received );
+    printf("\nPeriod4: SSL_CB_HANDSHAKE_FINISH: %f\n", timing_data->handshake_end );
+
+    log_times(aquerytime, txtquerytime, tlsaquerytime, totalquerytime, timing_data->handshake_start, timing_data->send_client_hello, timing_data->cert_received, timing_data->handshake_end);
+
+
     SSL_free(ssl);
     close(sock);
     SSL_CTX_free(ctx);
     EVP_cleanup();
-
+    free(timing_data);
     fclose(fp);
 
     return 0;
@@ -816,7 +884,8 @@ static void init_tcp_sync(int argc, char *argv[], struct sockaddr_storage *addr,
     clock_gettime(CLOCK_MONOTONIC, &begin2);
     printf("complete A and AAAA DNS records query : %f\n", (begin2.tv_sec) + (begin2.tv_nsec) / 1000000000.0);
     double ending = (begin2.tv_sec) + (begin2.tv_nsec) / 1000000000.0;
-
+    aquerytime = ending - start_time;
+    a_before = start_time;
     if (connect(sock, (struct sockaddr *)addr, len) < 0)
     {
         error_handling("connect() error!");
@@ -858,7 +927,7 @@ static int txt_query_retry(char *argv[], int txt_num, int **total_txt_num, unsig
     ns_rr rr;
     int retry_count = 2;
     char query_num[20];
-    char query_url[20] = "ns1.";
+    char query_url[20] = "ebox-";
     char query_url_postfix[20] = ".esplab.io";
     sprintf(query_num, "%d", txt_num);
     strcat(query_url, argv[3]);
@@ -868,8 +937,13 @@ static int txt_query_retry(char *argv[], int txt_num, int **total_txt_num, unsig
     for (int i = 0; i < retry_count; ++i)
     {
         printf("Attempt %d to query TXT record for %s\n", i + 1, query_url);
+        clock_gettime(CLOCK_MONOTONIC, &point);
+        if(txt_before == 0)
+        txt_before = (point.tv_sec) + (point.tv_nsec) / 1000000000.0;
 
         response = dns_query_with_timeout(query_url, ns_t_txt, query_txt_buffer);
+        clock_gettime(CLOCK_MONOTONIC, &point);
+        txt_after = (point.tv_sec) + (point.tv_nsec) / 1000000000.0;
 
         if (response >= 0)
         {
@@ -956,7 +1030,7 @@ static int txt_query(char *argv[], int txt_num, int **total_txt_num, unsigned ch
 {
 
     char query_num[20];
-    char query_url[20] = "ns1.";
+    char query_url[20] = "ebox-";
     char query_url_postfix[20] = ".esplab.io";
     ns_type type;
     type = ns_t_txt;
@@ -975,7 +1049,12 @@ static int txt_query(char *argv[], int txt_num, int **total_txt_num, unsigned ch
     clock_gettime(CLOCK_MONOTONIC, &begin);
     printf("start DNS TXT query: %f\n", (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
     printf("query_url in txt query: %s\n", query_url);
+    if(txt_before == 0)
+    txt_before = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;
+
     response = res_search(query_url, C_IN, type, query_txt_buffer, 4096);
+    clock_gettime(CLOCK_MONOTONIC, &begin);
+    txt_after = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;
     // response = res_search(argv[txt_num+2], C_IN, type, query_txt_buffer, 4096);
     //  log
     clock_gettime(CLOCK_MONOTONIC, &begin);
@@ -1031,7 +1110,7 @@ static int tlsa_query(char *argv[], int tlsa_num, unsigned char query_buffer[], 
     }
     printf("pqtlsa_num: %d\n", tlsa_num - 1);
     char query_num[20];
-    char query_url[100] = "_443._udp.ns1.";
+    char query_url[100] = "_443._udp.ebox-";
     char query_url_postfix[20] = ".esplab.io";
     sprintf(query_num, "%d", tlsa_num - 1);
     strcat(query_url, argv[3]);
@@ -1052,9 +1131,13 @@ static int tlsa_query(char *argv[], int tlsa_num, unsigned char query_buffer[], 
     clock_gettime(CLOCK_MONOTONIC, &begin);
     printf("start DNS PQTLSA query: %f\n", (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
     // printf("start DNS TLSA query:\n");
+    if(tlsa_before == 0)
+    tlsa_before = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;
     response = res_search(query_url, C_IN, type2, query_buffer, buffer_size);
     // log
+
     clock_gettime(CLOCK_MONOTONIC, &begin);
+    tlsa_after = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;
     printf("complete DNS PQTLSA query : %f\n", (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
     // printf("complete DNS TLSA query :\n");
 
@@ -1083,7 +1166,7 @@ static int tlsa_query_retry(char *argv[], int tlsa_num, unsigned char query_buff
     }
     printf("pqtlsa_num: %d\n", tlsa_num - 1);
     char query_num[20];
-    char query_url[100] = "_443._udp.ns1.";
+    char query_url[100] = "_443._udp.ebox-";
     char query_url_postfix[20] = ".esplab.io";
     sprintf(query_num, "%d", tlsa_num);
     strcat(query_url, argv[3]);
@@ -1108,8 +1191,13 @@ static int tlsa_query_retry(char *argv[], int tlsa_num, unsigned char query_buff
     for (int i = 0; i < retry_count; ++i)
     {
         printf("Attempt %d to query TLSA record for %s\n", i + 1, query_url);
+        clock_gettime(CLOCK_MONOTONIC, &begin);
+        if(tlsa_before == 0)
+        tlsa_before = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;
 
         response = dns_query_with_timeout(query_url, type2, query_buffer);
+        clock_gettime(CLOCK_MONOTONIC, &begin);
+        tlsa_after = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;
 
         if (response >= 0)
         {
@@ -1182,7 +1270,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     char newline[4] = "\n";
     char *ztls_version = "0"; // v=pqztls_1
     char *ztls_cert_copy;
-    ztls_cert_copy = (char *)calloc(7000, sizeof(char));
+    ztls_cert_copy = (char *)calloc(70000, sizeof(char));
     // printf("ztls_cert2: \n%s\n\n", ztls_cert);
     int k = 0;
     for (int i = 0; *(ztls_cert + i) != '\0'; ++i)
@@ -1195,7 +1283,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     ztls_cert_copy[k] = '\0';
 
     // printf("str :\n%s\n", str);
-    printf("ztls_cert_copy: \n%s\n\n", ztls_cert_copy);
+   // printf("ztls_cert_copy: \n%s\n\n", ztls_cert_copy);
     // v=ztls1 check
     // printf("txt records:\n %s\n", dnsmsg);
     char txt_record_except_signature[BUF_SIZE];
@@ -1328,7 +1416,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     strcat(certificate_prefix2, ztls_cert);
     // printf("certificate_prefix2: %s\n\n", certificate_prefix2);
     strcat(certificate_prefix2, certificate_postfix2);
-     printf("certificate_prefix2: %s\n\n", certificate_prefix2);
+  //  printf("certificate_prefix2: %s\n\n", certificate_prefix2);
 
     bio_cert = BIO_new(BIO_s_mem());
     printf("cert length: %d\n", BIO_puts(bio_cert, certificate_prefix2));
@@ -1356,7 +1444,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     // printf("%s\n", tmp);
     strcat(txt_record_except_signature, signature_ID);
     strcat(txt_record_except_signature, signature_length);
-    printf("txt_record_except_signature: %s\n\n", txt_record_except_signature);
+   // printf("txt_record_except_signature: %s\n\n", txt_record_except_signature);
 
     //  load TXT signature (cert verify)
     //printf("signature_algorithms: %s\n", tmp);
@@ -1368,7 +1456,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
 
     while (i < 100)
     {
-        printf("fullsignature: #%d  : %s\n", i, tmp);
+    //    printf("fullsignature: #%d  : %s\n", i, tmp);
         strcat(txt_record_signature, tmp); // value (1)
         tmp = strtok(NULL, " ");
         if (tmp == NULL)
@@ -1398,7 +1486,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     }
     printf("signature read finished!!\n");
     // strcat(txt_record_signature, tmp);
-    printf("fullsignature %d, %s\n", i, txt_record_signature);
+ //   printf("fullsignature %d, %s\n", i, txt_record_signature);
 
     if (100 <= i)
     {
@@ -1422,7 +1510,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     if (fgets(txt_record_signature, BUF_SIZE, file) != NULL)
     {
         // 성공적으로 읽힌 경우, 문자열 처리
-        printf("Read string: %s\n", txt_record_signature);
+   //     printf("Read string: %s\n", txt_record_signature);
     }
     else
     {
@@ -1433,7 +1521,7 @@ static int load_dns_info2(struct DNS_info *dp, char *truncated_dnsmsg_out, char 
     fclose(file);
 
     strcpy((char *)dp->CertVerifyEntry.cert_verify, txt_record_signature);
-    printf("cert_verify:\n%s\n", dp->CertVerifyEntry.cert_verify);
+  //  printf("cert_verify:\n%s\n", dp->CertVerifyEntry.cert_verify);
     return 0;
 }
 
@@ -1559,7 +1647,7 @@ unsigned char *hex_to_base64(unsigned char **hex_data, int *size, unsigned char 
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     // printf("size_1:%d\n, size_2:%d\n", size_1,size_2);
-    size_t output_len = 5500;
+    size_t output_len = 200000;
     char *out_buf = malloc(output_len);
     if (!out_buf)
     {
