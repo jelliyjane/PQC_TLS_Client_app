@@ -309,7 +309,7 @@ int main(int argc, char *argv[]){
     start_time_idx = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
     SSL_CTX *ctx = create_context();
     // static ctx configurations
-    SSL_CTX_load_verify_locations(ctx, "../dns/cert/dilithium2_crt.pem", "./dns/cert/");
+    SSL_CTX_load_verify_locations(ctx, "../dns/cert/sphincssha2192fsimple_crt.pem", "./dns/cert/");
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL); // SSL_VERIFY_NONE
     SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
     SSL_CTX_set_keylog_callback(ctx, keylog_callback);
@@ -749,7 +749,7 @@ int main(int argc, char *argv[]){
         printf("return of server public key: %d\n", SSL_use_PrivateKey(ssl, dns_info.KeyShareEntry.skey)); // set server's keyshare // this function is modified
         verify_self_signed_cert(dns_info.cert);
         BIO *bio_file = BIO_new(BIO_s_file());
-        const char *cert_filename = "../dns/cert/dilithium5_crt.pem";
+        const char *cert_filename = "../dns/cert/sphincssha2192fsimple_crt.pem";
         BIO_read_filename(bio_file, cert_filename);  // 인증서 파일 경로
         dns_info.cert = PEM_read_bio_X509(bio_file, NULL, NULL, NULL);
 
