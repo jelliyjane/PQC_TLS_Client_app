@@ -1,5 +1,8 @@
 #include "new_echo_client.h"
 #include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
 #include <arpa/nameser.h>
 #include <netinet/in.h>
 #include <resolv.h>
@@ -125,7 +128,7 @@ struct DNS_info{
     } CertRequest;
     struct {
         uint16_t signature_algorithms;
-        unsigned char cert_verify[BUF_SIZE]; // signature
+        unsigned char *cert_verify; // signature
     } CertVerifyEntry;
 } dns_info;
 
@@ -153,7 +156,6 @@ static time_t is_datetime(const char *datetime);
 
 static void init_tcp_sync(int argc, char *argv[], struct sockaddr_storage * addr, int sock, int * is_start);
 static int tlsa_query(char *argv[], int tlsa_num, unsigned char pqtlsa_query_buffer[], int buffer_size,unsigned char ** tlsa_record_all, int * is_start);
-static int txt_query(char *argv[], int txt_num, unsigned char txt_query_buffer[],unsigned char * txt_record_data);
 static int txt_query_retry(char *argv[], int txt_num, unsigned char query_txt_buffer[], unsigned char *txt_record_data, int* pqtxt_record_len);
 unsigned char * hex_to_base64(unsigned char **hex_data, int* size, unsigned char hex[], int tlsa_num);
 
@@ -197,12 +199,6 @@ static void *thread_tlsa_query(void* arguments)
 	int tlsa_len = tlsa_query(args->argv, args->pqtlsa_num, args->pqtlsa_query_buffer , args->buffer_size, args->pqtlsa_record_all, args->is_start);
 
 	return (void *)tlsa_len;
-}
-static void *thread_txt_query(void* arguments)
-{
-	struct arg_struct3* args = (struct arg_struct3 *) arguments;
-	txt_query(args->argv, args->txt_num, args->txt_query_buffer , args->txt_record_data);
-	pthread_exit(NULL);
 }
 
 static void *thread_txt_query_retry(void* arguments)
@@ -302,10 +298,12 @@ int main(int argc, char *argv[]){
     int PUBKEY_SIZE;
     int SIGN_SIZE;
     int SIGN_SIZE_BASE64;
+    int CERT_LENGTH;
     if(strcmp(argv[3],"dil2")==0){
     	PUBKEY_SIZE = 1312;
     	SIGN_SIZE_BASE64 = 3228;
     	SIGN_SIZE = 2420;
+    	CERT_LENGTH = 5312;
     }
     else if(strcmp(argv[3],"dil3")==0){
     	PUBKEY_SIZE = 1952;
@@ -484,7 +482,7 @@ int main(int argc, char *argv[]){
 	char* ztls_cert;
     ztls_cert = (char*) malloc(sizeof(char)*10000);
 	//for(int j = 0; j < 916-64 ; j=j+64){ 908
-	for(int j = 0; j < 5399 ; j=j+64){
+	for(int j = 0; j < CERT_LENGTH ; j=j+64){
 		strncat(ztls_cert,based64_out+j,64);
 		strcat(ztls_cert,newline2);
 		//printf("hex_out_cert: %s", hex_out_cert);
@@ -499,7 +497,7 @@ int main(int argc, char *argv[]){
 		merged_tlsa_length += pqtlsa_len[i];
 		//printf("pqtlsa_len: %d\n", pqtlsa_len[i]);
 	}
-	//printf("merged_tlsa_length: %d\n", merged_tlsa_length);
+	printf("merged_tlsa_length: %d\n", merged_tlsa_length);
 	
 	unsigned char* merged_tlsa_data = (unsigned char*)calloc(merged_tlsa_length, sizeof(unsigned char));
 	int temp = 0;
@@ -615,7 +613,7 @@ int main(int argc, char *argv[]){
 	memcpy(&ExpressPQDelivery_v, txt_record_all+offset, 1);
 	offset += 2;
 	a = (char) ExpressPQDelivery_v;
-	strcat(ebox_val, &a);
+	strcat(ebox_val, &ExpressPQDelivery_v);
 	//printf("ExpressPQDelivery_v: %02x\n\n", ExpressPQDelivery_v);
 
 	char protocol;
@@ -627,8 +625,8 @@ int main(int argc, char *argv[]){
 	//printf("protocol: %c\n\n", protocol);
 
 	//---------------------E-Box validity period---------------------
-	char* day_before = (char*)malloc(sizeof(char)*14);
-	char* day_after = (char*)malloc(sizeof(char)*14);
+	unsigned char* day_before = (unsigned char*)malloc(sizeof(unsigned char)*14);
+	unsigned char* day_after = (unsigned char*)malloc(sizeof(unsigned char)*14);
 
 	memcpy(day_before, txt_record_all+offset, 14);
 	offset += 15;
@@ -647,8 +645,8 @@ int main(int argc, char *argv[]){
 	dns_info.DNSCacheInfo.validity_period_not_before = is_datetime(day_before);
 	dns_info.DNSCacheInfo.validity_period_not_after = is_datetime(day_after);
 
-	time_t current_time = time(NULL);  // 현재 시간을 초 단위로 반환
-    struct tm *local_time = localtime(&current_time);  // 현재 시간을 지역 시간으로 변환
+	time_t current_time = time(NULL);  
+    struct tm *local_time = localtime(&current_time); 
 
     printf("current time: %d-%02d-%02d %02d:%02d:%02d\n",
            local_time->tm_year + 1900,
@@ -694,7 +692,7 @@ int main(int argc, char *argv[]){
 	
 
 	//---------------------Add certificate HASH---------------------
-	strcat(ebox_val, tlsa_hash_string);
+	memcpy(ebox_val+33, tlsa_hash_string, 64);
 
 	printf("ebox-val: %s\n", ebox_val);
 
@@ -703,28 +701,33 @@ int main(int argc, char *argv[]){
 	//printf("SIGN_SIZE_BASE64: %d\n", SIGN_SIZE_BASE64);
 	int len = 0;
 	int cur_len = 0;
+	dns_info.CertVerifyEntry.cert_verify  = (unsigned char*) calloc(SIGN_SIZE_BASE64, sizeof(unsigned char));
 	do{
 		len = (unsigned char)txt_record_all[offset -1];
 		//printf("len: %d\n", len);
 		cur_len = cur_len + len;
 		memcpy(dns_info.CertVerifyEntry.cert_verify + cur_len - len, txt_record_all+offset, len);
-		offset += len + 1;
+		offset += (len + 1);
 		/*for (int i = cur_len - len; i < cur_len; ++i)
 		{
 			printf("%02x", dns_info.CertVerifyEntry.cert_verify[i]);
 		}
 		printf("\n\n");*/
 	}while(offset < txt_record_all_len);
+	dns_info.CertVerifyEntry.cert_verify[SIGN_SIZE_BASE64] = '\0';
 
+	free(txt_record_all);
 	/*for (int i = 0; i < 3228; i++)
 	{
 		printf("%02x", dns_info.CertVerifyEntry.cert_verify[i]);
-	}*/
+	}
+	printf("\n");*/
+	//printf("%s\n\n", dns_info.CertVerifyEntry.cert_verify);
 
 	//------------------------add pem config------------------------
 	char* cert_prefix = (char*)calloc(10000, sizeof(char));
 	strcat(cert_prefix, "-----BEGIN CERTIFICATE-----\n");
-	strncat(cert_prefix, ztls_cert, strlen(ztls_cert)-1);
+	strncat(cert_prefix, ztls_cert, strlen(ztls_cert));
 	strcat(cert_prefix, "-----END CERTIFICATE-----");
 
 	//printf("cert_prefix: %s\n", cert_prefix);
@@ -753,7 +756,7 @@ int main(int argc, char *argv[]){
 	    if (!SSL_set1_groups_list(ssl, "kyber512"))
 	        error_handling("fail to set kyber512");
 	}
-	free(txt_record_all);
+	
 
 	//ssl = SSL_new(ctx);
 	SSL_set_wfd(ssl, DNS); // fd : 1 => ZTLS, fd : 0 => TLS 1.3
@@ -780,7 +783,7 @@ int main(int argc, char *argv[]){
     }
 
     BIO *bio_file = BIO_new(BIO_s_file());
-    const char *cert_filename = "../dns/cert/dil2_crt_0922.pem";
+    const char *cert_filename = "../dns/new_cert/dil2_crt.pem";
     BIO_read_filename(bio_file, cert_filename);  // 인증서 파일 경로
     dns_info.cert = PEM_read_bio_X509(bio_file, NULL, NULL, NULL);
 
@@ -798,11 +801,9 @@ int main(int argc, char *argv[]){
 		(dns_info.CertVerifyEntry.signature_algorithms == 0xfed7) || 
 		(dns_info.CertVerifyEntry.signature_algorithms == 0xfeda))     //dil2
 	{
-		strcat(ebox_val, "\n");
 		//printf("txt_record_except_signature\n");
 		//printf("%s",txt_record_except_signature );
 		
-		strcat(dns_info.CertVerifyEntry.cert_verify, "\n");
 		//printf("\ndns_info.CertVerifyEntry.cert_verify\n");
 		//printf("%s",dns_info.CertVerifyEntry.cert_verify );
 		EVP_MD_CTX *mdctx = NULL;
@@ -815,40 +816,37 @@ int main(int argc, char *argv[]){
 	        printf("verify init failed\n");
 
 	    //int binary_signature_len;
-	    //printf("strlen(dns_info.CertVerifyEntry.cert_verify): %d\n",strlen(dns_info.CertVerifyEntry.cert_verify));
-	    //printf("SIGN_SIZE_BASE64: %d\n", SIGN_SIZE_BASE64);
+	    printf("strlen(dns_info.CertVerifyEntry.cert_verify): %d\n",strlen(dns_info.CertVerifyEntry.cert_verify));
+	    printf("SIGN_SIZE_BASE64: %d\n", SIGN_SIZE_BASE64);
 	    //unsigned char* binary_signature = (unsigned char*)malloc(sizeof(unsigned char)*SIGN_SIZE);
-	    base64_decode(dns_info.CertVerifyEntry.cert_verify, SIGN_SIZE_BASE64, binary_signature, &binary_signature_len);
-	    for (int i = 0; i < SIGN_SIZE; i++)
+	    //base64_decode(dns_info.CertVerifyEntry.cert_verify, SIGN_SIZE_BASE64, binary_signature, &binary_signature_len);
+
+	    //printf("\n");
+	    unsigned char* base64_sign = (unsigned char*)malloc(sizeof(unsigned char)*SIGN_SIZE_BASE64);
+	    size_t base64_sign_len = EVP_DecodeBlock(base64_sign, dns_info.CertVerifyEntry.cert_verify, SIGN_SIZE_BASE64);
+	    base64_sign[SIGN_SIZE] = '\0';
+	    /*
+	    for (int i = 0; i < SIGN_SIZE_BASE64; ++i)
 	    {
-	    	printf("%02x", binary_signature[i]);
+	    	printf("%02x", base64_sign[i]);
 	    }
-	    printf("\n");
+	    printf("\n\n");
+	    printf("base64_sign_len: %d\n", base64_sign_len);
+		*/
 
-	    unsigned char* decoded_sig = (unsigned char*)malloc(sizeof(unsigned char)*SIGN_SIZE);;
-    	size_t decoded_sig_len;
-    	int result = 0;
-
-    	decoded_sig = base64_decode(dns_info.CertVerifyEntry.cert_verify, &decoded_sig_len);
-    	if (decoded_sig == NULL) {
-        	fprintf(stderr, "Base64 decoding failed:(\n");
-        	return 0;
-   	 	}
-
-	    //ret = EVP_DigestVerify(mdctx, binary_signature, SIGN_SIZE, ebox_val, 97);
 	    if (EVP_DigestVerifyUpdate(mdctx, ebox_val, 97) <= 0) {
 	        fprintf(stderr, "EVP_DigestVerifyUpdate 실패\n");
 	        ERR_print_errors_fp(stderr);
 	        EVP_MD_CTX_free(mdctx);
-	        free(decoded_sig);
-        return 0;
+        	return 0;
     	}
 
-	    result = EVP_DigestVerifyFinal(mdctx, decoded_sig, decoded_sig_len);
+	    int result = EVP_DigestVerifyFinal(mdctx, base64_sign, SIGN_SIZE);
 	    if (result == 1) {
 	        printf("E-Box verification Success!\n");
 	    } else if (result == 0) {
 	        printf("E-Box verification failed:(\n");
+	        return -1;
 	    } else {
 	        fprintf(stderr, "error!\n");
 	        ERR_print_errors_fp(stderr);
@@ -859,8 +857,6 @@ int main(int argc, char *argv[]){
 	    EVP_PKEY_free(pubkey);
 
 		}
-
-	
 
     }else {
 		is_start = 1;
@@ -925,8 +921,6 @@ int main(int argc, char *argv[]){
     printf("\nPeriod4: SSL_CB_HANDSHAKE_FINISH: %f\n", timing_data->handshake_end );
 
     log_times(aquerytime, txtquerytime, tlsaquerytime, totalquerytime, timing_data->handshake_start, timing_data->send_client_hello, timing_data->cert_received, timing_data->handshake_end);
-
-
 
     SSL_free(ssl);
     close(sock);
@@ -1042,73 +1036,7 @@ static int txt_query_retry(char *argv[], int txt_num, unsigned char query_txt_bu
     return -1;
 }
 
-static int txt_query(char *argv[], int txt_num, unsigned char query_txt_buffer[], unsigned char * txt_record_all){
-	
-	char query_num[20];
-	char query_url[20]="";
-	char query_url_fix[20] = ".ebox-";
-	char domain_name[20] = ".esplab.io";
-	sprintf(query_num, "%d", txt_num-1);
-	strcat(query_url,argv[3]);
-	strcat(query_url,query_url_fix);
-	strcat(query_url,query_num);
-	strcat(query_url,domain_name);
-	ns_type type;
-	type= ns_t_txt;
-	ns_msg nsMsg;
-	ns_rr rr;
-	int response;
 
-	struct timespec begin;
-	clock_gettime(CLOCK_MONOTONIC, &begin);
-	printf("start DNS TXT query: %f\n",(begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
-	printf("query_url in txt query: %s\n", query_url);
-	if(txt_before == 0)
-	clock_gettime(CLOCK_MONOTONIC, &begin);
-	txt_before = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;
-	response = res_search(query_url, C_IN, type, query_txt_buffer, 4096);
-	clock_gettime(CLOCK_MONOTONIC, &begin);
-	txt_after = (begin.tv_sec) + (begin.tv_nsec) / 1000000000.0;
-	//response = res_search(argv[txt_num+2], C_IN, type, query_txt_buffer, 4096);
-	// log
-	clock_gettime(CLOCK_MONOTONIC, &begin);
-	printf("complete DNS TXT query : %f\n",(begin.tv_sec) + (begin.tv_nsec) / 1000000000.0);
-	if (response < 0) {
-		printf("Try to looking up again service: TXT %d\n", txt_num);
-		return 0;
-	} 
-
-	ns_initparse(query_txt_buffer, response, &nsMsg);
-	//ns_parserr(&nsMsg, ns_s_an, 0, &rr);
-	u_char const *rdata = (u_char*)(ns_rr_rdata(rr)+1 );
-	//*txt_record_all = (unsigned char*)rdata;
-	int rr_count = ns_msg_count(nsMsg, ns_s_an);
-	
-    int offset = 0;
-
-    int i;
-    for (i = 0; i < rr_count; i++) {
-        if (ns_parserr(&nsMsg, ns_s_an, i, &rr) == 0) {
-            if (ns_rr_type(rr) == ns_t_txt) {
-                u_char *rdata = ns_rr_rdata(rr);
-                //printf("rdata: %s\n", rdata);
-                int rdata_len = ns_rr_rdlen(rr);
-                u_char *end = rdata + rdata_len;
-                while (rdata < end) {
-                    int txt_len = *rdata;
-                    rdata++;
-                    snprintf(txt_record_all + offset, 7000-offset, "%.*s ", txt_len, (char *)rdata);
-                    offset += txt_len;
-                    rdata += txt_len;
-                }
-            }
-        } 
-    }
-
-    //strcat(*txt_record_all,'\0');
-   // printf("txt_record_all: %s\n", txt_record_all);
-
-}
 static int 	tlsa_query(char *argv[], int tlsa_num, unsigned char query_buffer[], int buffer_size, unsigned char ** tlsa_record_all, int * is_start) {
 	int retry_count = 2;
 	while(*is_start < 0) { //for prototyping. next, use signal.
