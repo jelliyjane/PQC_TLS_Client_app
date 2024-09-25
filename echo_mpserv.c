@@ -36,7 +36,6 @@ int main(int argc, char *argv[]){
             error_handling("fail to set kyber512");
         SSL_set_fd(ssl, clnt_sock);
 
-
         if(SSL_accept(ssl) <= 0){
             ERR_print_errors_fp(stderr);
             error_handling("fail to accept TLS connection");
@@ -86,7 +85,7 @@ SSL_CTX *create_context(){
     SSL_CTX* ctx = SSL_CTX_new(SSLv23_server_method());
     if(!ctx) error_handling("fail to create ssl context");
 
-    SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+    //SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
     return ctx;
 }
 /*
@@ -96,9 +95,11 @@ SSL_CTX *create_context(){
 void set_context(SSL_CTX* ctx){
     //if(!SSL_CTX_set_ecdh_auto(ctx, 1))
         //error_handling("fail to set ECDHE curves");
-    if(!SSL_CTX_use_certificate_file(ctx, "dns/cert/CarolCert.pem", SSL_FILETYPE_PEM))
+    //if(!SSL_CTX_use_certificate_file(ctx, "dns/cert/dilithium5_2ICA_chain.crt", SSL_FILETYPE_PEM))
+    if(!SSL_CTX_use_certificate_file(ctx, "dns/new_cert/dil2_crt.pem", SSL_FILETYPE_PEM))
+    //if(!SSL_CTX_use_certificate_file(ctx, "dns/cert/fal512_crt_0920.pem", SSL_FILETYPE_PEM))
         error_handling("fail to load cert");
-    if(!SSL_CTX_use_PrivateKey_file(ctx, "dns/cert/CarolPriv.pem", SSL_FILETYPE_PEM))
+    if(!SSL_CTX_use_PrivateKey_file(ctx, "dns/new_cert/dil2_priv.key", SSL_FILETYPE_PEM))
         error_handling("fail to load cert's private key");
 
     SSL_CTX_set_keylog_callback(ctx, keylog_callback);
