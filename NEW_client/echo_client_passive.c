@@ -266,7 +266,7 @@ int main(int argc, char *argv[]){
 	init_openssl();
 	SSL_CTX *ctx = create_context();
 	// static ctx configurations 
-	SSL_CTX_load_verify_locations(ctx, "../dns/cert/dilithium2_crt.pem", "./dns/cert/");
+	SSL_CTX_load_verify_locations(ctx, "../dns/new_cert/dil2_crt.pem", "./dns/new_cert/");
 	SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL); // SSL_VERIFY_NONE
 	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
 	SSL_CTX_set_keylog_callback(ctx, keylog_callback);
@@ -286,6 +286,10 @@ int main(int argc, char *argv[]){
 
 	char hex_buffer[60000];
 	
+	int PUBKEY_SIZE;
+	int SIGN_SIZE;
+	int SIGN_SIZE_BASE64;
+	int CERT_LENGTH;
 
 	if(DNS==0 && argc==3){
 		printf("TLS 1.3 mode\n");
@@ -295,31 +299,30 @@ int main(int argc, char *argv[]){
         exit(1);
      */
     }
-    int PUBKEY_SIZE;
-    int SIGN_SIZE;
-    int SIGN_SIZE_BASE64;
-    int CERT_LENGTH;
-    if(strcmp(argv[3],"dil2")==0){
-    	PUBKEY_SIZE = 1312;
-    	SIGN_SIZE_BASE64 = 3228;
-    	SIGN_SIZE = 2420;
-    	CERT_LENGTH = 5312;
-    }
-    else if(strcmp(argv[3],"dil3")==0){
-    	PUBKEY_SIZE = 1952;
-    	SIGN_SIZE_BASE64 = 4392;
-    	SIGN_SIZE = 3293;
-    }
-        else if(strcmp(argv[3],"fal512")==0){
-    	PUBKEY_SIZE = 666;
-    	SIGN_SIZE_BASE64 = 4392;
-    	int SIGN_SIZE = 3293;
-    }
-        else if(strcmp(argv[3],"fal1024")==0){
-    	PUBKEY_SIZE = 666;
-    	SIGN_SIZE_BASE64 = 4392;
-    	SIGN_SIZE = 3293;
-    }
+    else if(DNS==1){
+
+	    if(strcmp(argv[3],"dil2")==0){
+	    	PUBKEY_SIZE = 1312;
+	    	SIGN_SIZE_BASE64 = 3228;
+	    	SIGN_SIZE = 2420;
+	    	CERT_LENGTH = 5312;
+	    }
+	    else if(strcmp(argv[3],"dil3")==0){
+	    	PUBKEY_SIZE = 1952;
+	    	SIGN_SIZE_BASE64 = 4392;
+	    	SIGN_SIZE = 3293;
+	    }
+	        else if(strcmp(argv[3],"fal512")==0){
+	    	PUBKEY_SIZE = 666;
+	    	SIGN_SIZE_BASE64 = 4392;
+	    	int SIGN_SIZE = 3293;
+	    }
+	        else if(strcmp(argv[3],"fal1024")==0){
+	    	PUBKEY_SIZE = 666;
+	    	SIGN_SIZE_BASE64 = 4392;
+	    	SIGN_SIZE = 3293;
+	    }
+	}
 	int is_start = -1;
 
     // log
