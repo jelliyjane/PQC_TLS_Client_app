@@ -86,23 +86,25 @@ void info_callback(const SSL *ssl, int where, int ret)
     	}
     }
 
-    if (state == TLS_ST_CW_CLNT_HELLO)
+    if (state== TLS_ST_CW_CLNT_HELLO && where == TLS_ST_CW_CLNT_HELLO_END)
     {
     	timing_data->send_client_hello = now;
     	printf("\nPeriod2: TLS_ST_CW_CLNT_HELLO: %f\n", timing_data->send_client_hello);
     }
     
-   /*
-	if (state == TLS_ST_CR_CERT_VRFY)
+   
+	if (state == TLS_ST_CR_CERT_VRFY && where == TLS_ST_CW_CLNT_HELLO_END )
    {
     	timing_data->cert_received = now;
     	printf("\nPeriod3: TLS_ST_CR_CERT_VRFY: %f\n", timing_data->cert_received);
     }
-	*/
+	
+	/*
 	if(state == TLS_ST_CR_FINISHED){
 		timing_data->cert_received = now;
 		printf("Period3: TLS_ST_CR_FINISHED: %f", timing_data->cert_received);
 	}
+	*/
 
 
     if (where & SSL_CB_HANDSHAKE_DONE)
@@ -925,7 +927,7 @@ int main(int argc, char *argv[]){
     printf("\nDNS A query time: %f\n", aquerytime);
     printf("\nDNS TXT query time: %f\n", txtquerytime);
     printf("\nDNS TLSA query time: %f\n", tlsaquerytime);
-    printf("\nDNS total query / response time: %f\n", (aquerytime+txtquerytime+tlsaquerytime)*1000);
+    printf("\nDNS total query / response time: %f\n", (totalquerytime)*1000);
     printf("\nPeriod1: %f\n", (timing_data->send_client_hello - timing_data->handshake_start)*1000);
    //printf("\nPeriod2: Send client hello: %f\n", timing_data->send_client_hello );
     printf("\nPeriod2: %f\n", (timing_data->cert_received -timing_data->send_client_hello)*1000); //certficate_verify
