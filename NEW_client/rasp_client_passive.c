@@ -319,11 +319,18 @@ int main(int argc, char *argv[]){
 	    	PUBKEY_SIZE = 1952;
 	    	SIGN_SIZE_BASE64 = 4392;
 	    	SIGN_SIZE = 3293;
+	    	CERT_LENGTH = 7328;
+	    }
+	    else if(strcmp(argv[3],"dil5")==0){
+	    	PUBKEY_SIZE = 1952;
+	    	SIGN_SIZE_BASE64 = 4392;
+	    	SIGN_SIZE = 3293;
+	    	CERT_LENGTH = 9220;
 	    }
 	        else if(strcmp(argv[3],"fal512")==0){
 	    	PUBKEY_SIZE = 666;
 	    	SIGN_SIZE_BASE64 = 4392;
-	    	int SIGN_SIZE = 3293;
+	    	SIGN_SIZE = 3293;
 	    }
 	        else if(strcmp(argv[3],"fal1024")==0){
 	    	PUBKEY_SIZE = 666;
@@ -685,21 +692,26 @@ int main(int argc, char *argv[]){
 	memcpy(&ebox_sig_name, txt_record_all+offset, 1);
 	offset += 2;
 	strcat(ebox_val, &ebox_sig_name);
-
+	char kex[50];
 	if(ebox_sig_name == '0'){	
 		dns_info.CertVerifyEntry.signature_algorithms = 0xfea0; 	//dilithium2
+		strcpy(kex, "kyber512");
 	}
 	if(ebox_sig_name == '1'){
 		dns_info.CertVerifyEntry.signature_algorithms = 0xfea3;		//dilithium3
+		strcpy(kex, "kyber768");
 	}
 	if(ebox_sig_name == '2'){
 		dns_info.CertVerifyEntry.signature_algorithms = 0xfea5;		//dilithium5
+		strcpy(kex, "kyber1024");
 	}
 	if(ebox_sig_name == '3'){
 		dns_info.CertVerifyEntry.signature_algorithms = 0xfed7;		//falcon512
+		strcpy(kex, "kyber512");
 	}
 	if(ebox_sig_name == '4'){
 		dns_info.CertVerifyEntry.signature_algorithms = 0xfeda;		//falcon1024
+		strcpy(kex, "kyber1024");
 	}
 	//printf("dns_info.CertVerifyEntry.signature_algorithms: %02x\n\n", dns_info.CertVerifyEntry.signature_algorithms);
 	
@@ -766,8 +778,8 @@ int main(int argc, char *argv[]){
 	    int result_cb = SSL_CTX_add_client_custom_ext(ctx, 65280, ext_add_cb, ext_free_cb, NULL, ext_parse_cb, NULL);
 	    ssl = SSL_new(ctx);
 	    SSL_set_ex_data(ssl, my_idx, timing_data);
-	    if (!SSL_set1_groups_list(ssl, "kyber512"))
-	        error_handling("fail to set kyber512");
+	    if (!SSL_set1_groups_list(ssl, kex))
+	        error_handling("fail to set kyber");
 	}
 	
 

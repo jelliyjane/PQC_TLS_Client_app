@@ -8,13 +8,15 @@ int main(int argc, char *argv[]){
     //OSSL_PROVIDER_load(OSSL_LIB_CTX_new(), "oqsprovider");
 
     //set_context(ctx);
-    char cert_file[100];
-    char key_file[100];
-    char kex[50];
+
 
     if(argc != 3){
         printf("Usage : %s <port>\n", argv[0]);
     }
+
+    char cert_file[100];
+    char key_file[100];
+    char kex[50];
     if (strcmp(argv[2], "dil2") == 0) {
         strcpy(cert_file, "dns/new_cert/dil2_crt.pem");
         strcpy(key_file, "dns/new_cert/dil2_priv.key");
