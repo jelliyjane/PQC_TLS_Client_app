@@ -7,12 +7,48 @@ int main(int argc, char *argv[]){
     SSL_CTX *ctx = create_context();
     //OSSL_PROVIDER_load(OSSL_LIB_CTX_new(), "oqsprovider");
 
-    set_context(ctx);
-    SSL_CTX_set_num_tickets(ctx, 0);
- 
-    if(argc != 2){
+    //set_context(ctx);
+    char cert_file[100];
+    char key_file[100];
+    char kex[50];
+
+    if(argc != 3){
         printf("Usage : %s <port>\n", argv[0]);
     }
+    if (strcmp(argv[2], "dil2") == 0) {
+        strcpy(cert_file, "dns/new_cert/dil2_crt.pem");
+        strcpy(key_file, "dns/new_cert/dil2_priv.key");
+        strcpy(kex, "kyber512");
+    } else if (strcmp(argv[2], "dil3") == 0) {
+        strcpy(cert_file, "dns/new_cert/dil3_crt.pem");
+        strcpy(key_file, "dns/new_cert/dil3_priv.key");
+        strcpy(kex, "kyber768");
+    } else if (strcmp(argv[2], "dil5") == 0) {
+        strcpy(cert_file, "dns/new_cert/dil5_crt.pem");
+        strcpy(key_file, "dns/new_cert/dil5_priv.key");
+        strcpy(kex, "kyber1024");
+    }
+    else if (strcmp(argv[2], "fal512") == 0) {
+        strcpy(cert_file, "dns/new_cert/fal512_crt.pem");
+        strcpy(key_file, "dns/new_cert/fal512_priv.key");
+        strcpy(kex, "kyber512");
+    }
+    else if (strcmp(argv[2], "fal1024") == 0) {
+        strcpy(cert_file, "dns/new_cert/fal1024_crt.pem");
+        strcpy(key_file, "dns/new_cert/fal1024_priv.key");
+        strcpy(kex, "kyber1024");
+    }
+
+    if(!SSL_CTX_use_certificate_file(ctx, cert_file, SSL_FILETYPE_PEM))
+        error_handling("fail to load cert");
+    if(!SSL_CTX_use_PrivateKey_file(ctx, key_file, SSL_FILETYPE_PEM))
+        error_handling("fail to load cert's private key");
+
+    SSL_CTX_set_keylog_callback(ctx, keylog_callback);
+
+
+    SSL_CTX_set_num_tickets(ctx, 0);
+ 
     int serv_sock = create_listen(atoi(argv[1]));
 
     pid_t pid;
@@ -32,8 +68,8 @@ int main(int argc, char *argv[]){
         }
 
         SSL* ssl = SSL_new(ctx);
-        if(!SSL_set1_groups_list(ssl, "kyber512"))
-            error_handling("fail to set kyber512");
+        if(!SSL_set1_groups_list(ssl, kex))
+            error_handling("fail to set kex algorithm");
         SSL_set_fd(ssl, clnt_sock);
 
         if(SSL_accept(ssl) <= 0){
