@@ -351,13 +351,15 @@ int main(int argc, char *argv[]){
 	    }
 	        else if(strcmp(argv[3],"fal512")==0){
 	    	PUBKEY_SIZE = 666;
-	    	SIGN_SIZE_BASE64 = 4392;
-	    	SIGN_SIZE = 3293;
+	    	SIGN_SIZE_BASE64 = 876;
+	    	SIGN_SIZE = 656;
+	    	CERT_LENGTH = 2380;
 	    }
 	        else if(strcmp(argv[3],"fal1024")==0){
-	    	PUBKEY_SIZE = 666;
-	    	SIGN_SIZE_BASE64 = 4392;
-	    	SIGN_SIZE = 3293;
+	    	PUBKEY_SIZE = 1280;
+	    	SIGN_SIZE_BASE64 = 1700;
+	    	SIGN_SIZE = 1274;
+	    	CERT_LENGTH = 4392;
 	    }
 	}
 	int is_start = -1;
