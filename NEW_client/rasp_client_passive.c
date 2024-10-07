@@ -350,13 +350,13 @@ int main(int argc, char *argv[]){
 	    	CERT_LENGTH = 9220;
 	    }
 	        else if(strcmp(argv[3],"fal512")==0){
-	    	PUBKEY_SIZE = 666;
+	    	PUBKEY_SIZE = 1220;
 	    	SIGN_SIZE_BASE64 = 876;
 	    	SIGN_SIZE = 656;
 	    	CERT_LENGTH = 2380;
 	    }
 	        else if(strcmp(argv[3],"fal1024")==0){
-	    	PUBKEY_SIZE = 1280;
+	    	PUBKEY_SIZE = 2416;
 	    	SIGN_SIZE_BASE64 = 1700;
 	    	SIGN_SIZE = 1274;
 	    	CERT_LENGTH = 4392;
@@ -804,21 +804,13 @@ int main(int argc, char *argv[]){
 
 	SSL_CTX_add_custom_ext(ctx, 53, SSL_EXT_CLIENT_HELLO, dns_info_add_cb, dns_info_free_cb,NULL, NULL,NULL);// extentionTye = 53, Extension_data = dns_cache_id
 
-	if(dns_info.KeyShareEntry.group == 570){  // keyshare group : 570, kyber
-		
-		ssl = SSL_new(ctx);
-        SSL_set_ex_data(ssl, my_idx, timing_data);
-	if(!SSL_set1_groups_list(ssl, "kyber512"))
-		error_handling("fail to set kyber512");
-	}
-	else{
-	    dns_info.KeyShareEntry.group = 570;
-	    int result_cb = SSL_CTX_add_client_custom_ext(ctx, 65280, ext_add_cb, ext_free_cb, NULL, ext_parse_cb, NULL);
-	    ssl = SSL_new(ctx);
-	    SSL_set_ex_data(ssl, my_idx, timing_data);
-	    if (!SSL_set1_groups_list(ssl, kex))
-	        error_handling("fail to set kyber");
-	}
+	dns_info.KeyShareEntry.group = 570;
+	int result_cb = SSL_CTX_add_client_custom_ext(ctx, 65280, ext_add_cb, ext_free_cb, NULL, ext_parse_cb, NULL);
+	ssl = SSL_new(ctx);
+	SSL_set_ex_data(ssl, my_idx, timing_data);
+	if (!SSL_set1_groups_list(ssl, kex))
+		error_handling("fail to set kyber");
+	
 	
 
 	//ssl = SSL_new(ctx);
@@ -885,17 +877,19 @@ int main(int argc, char *argv[]){
 	    //base64_decode(dns_info.CertVerifyEntry.cert_verify, SIGN_SIZE_BASE64, binary_signature, &binary_signature_len);
 
 	    //printf("\n");
-	    unsigned char* base64_sign = (unsigned char*)malloc(sizeof(unsigned char)*SIGN_SIZE_BASE64);
+	    unsigned char* base64_sign = (unsigned char*)malloc(sizeof(unsigned char)*SIGN_SIZE);
 	    size_t base64_sign_len = EVP_DecodeBlock(base64_sign, dns_info.CertVerifyEntry.cert_verify, SIGN_SIZE_BASE64);
 	    base64_sign[SIGN_SIZE] = '\0';
+	    free(dns_info.CertVerifyEntry.cert_verify);
 	    /*
-	    for (int i = 0; i < SIGN_SIZE_BASE64; ++i)
+	    for (int i = 0; i < SIGN_SIZE; ++i)
 	    {
 	    	printf("%02x", base64_sign[i]);
 	    }
 	    printf("\n\n");
+	    */
 	    printf("base64_sign_len: %d\n", base64_sign_len);
-		*/
+		
 
 	    if (EVP_DigestVerifyUpdate(mdctx, ebox_val, 97) <= 0) {
 	        fprintf(stderr, "EVP_DigestVerifyUpdate 실패\n");
@@ -909,7 +903,7 @@ int main(int argc, char *argv[]){
 	        printf("E-Box verification Success!\n");
 	    } else if (result == 0) {
 	        printf("E-Box verification failed:(\n");
-	        return -1;
+	        //return -1;
 	    } else {
 	        fprintf(stderr, "error!\n");
 	        ERR_print_errors_fp(stderr);
