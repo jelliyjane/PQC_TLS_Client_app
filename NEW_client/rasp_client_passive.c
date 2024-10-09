@@ -255,7 +255,7 @@ int main(int argc, char *argv[]){
 		////////////////INIT BENCH////////////////
 	
 
-	/*
+	
 	fp = fopen("time_measurements.csv", "a+");
     if (fp == NULL) {
         printf("Error opening file!\n");
@@ -268,7 +268,7 @@ int main(int argc, char *argv[]){
         fprintf(fp, "DNS A Query Time,DNS TXT Query Time,DNS TLSA Query Time,DNS Total Query Time,SSL Handshake Start,Send Client Hello,Receive Certificate,SSL Handshake Finish\n");
     }
     fseek(fp, 0, SEEK_SET);
-	*/
+	
     ////////////////INIT BENCH////////////////
 
     clock_gettime(CLOCK_MONOTONIC, &point);
@@ -995,7 +995,7 @@ int main(int argc, char *argv[]){
     printf("\nPeriod2: %f\n", (timing_data->cert_received -timing_data->send_client_hello)*1000); //certficate_verify
     printf("\nPeriod3: %f\n", (timing_data->handshake_end - timing_data->cert_received)*1000);
 
-    //log_times(aquerytime, txtquerytime, tlsaquerytime, totalquerytime, timing_data->handshake_start, timing_data->send_client_hello, timing_data->cert_received, timing_data->handshake_end);
+    log_times(aquerytime, (timing_data->send_client_hello - timing_data->handshake_start)*1000, (timing_data->cert_received -timing_data->send_client_hello)*1000, totalquerytime, timing_data->handshake_start, timing_data->send_client_hello, timing_data->cert_received, timing_data->handshake_end);
 
     SSL_free(ssl);
     close(sock);
