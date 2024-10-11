@@ -1,4 +1,6 @@
 #include "echo_mpserv.h"
+#include <sys/socket.h>
+#include <netinet/tcp.h>
 #include <openssl/provider.h>
 
 int main(int argc, char *argv[]){
@@ -18,25 +20,25 @@ int main(int argc, char *argv[]){
     char key_file[100];
     char kex[50];
     if (strcmp(argv[2], "dil2") == 0) {
-        strcpy(cert_file, "dns/new_cert/dil2_crt.pem");
+        strcpy(cert_file, "dns/new_cert/dil2_chain_crt.pem");
         strcpy(key_file, "dns/new_cert/dil2_priv.key");
         strcpy(kex, "kyber512");
     } else if (strcmp(argv[2], "dil3") == 0) {
-        strcpy(cert_file, "dns/new_cert/dil3_crt.pem");
+        strcpy(cert_file, "dns/new_cert/dil3_chain_crt.pem");
         strcpy(key_file, "dns/new_cert/dil3_priv.key");
         strcpy(kex, "kyber768");
     } else if (strcmp(argv[2], "dil5") == 0) {
-        strcpy(cert_file, "dns/new_cert/dil5_crt.pem");
+        strcpy(cert_file, "dns/new_cert/dil5_chain_crt.pem");
         strcpy(key_file, "dns/new_cert/dil5_priv.key");
         strcpy(kex, "kyber1024");
     }
     else if (strcmp(argv[2], "fal512") == 0) {
-        strcpy(cert_file, "dns/new_cert/fal512_crt.pem");
+        strcpy(cert_file, "dns/new_cert/fal512_chain_crt.pem");
         strcpy(key_file, "dns/new_cert/fal512_priv.key");
         strcpy(kex, "kyber512");
     }
     else if (strcmp(argv[2], "fal1024") == 0) {
-        strcpy(cert_file, "dns/new_cert/fal1024_crt.pem");
+        strcpy(cert_file, "dns/new_cert/fal1024_chain_crt.pem");
         strcpy(key_file, "dns/new_cert/fal1024_priv.key");
         strcpy(kex, "kyber1024");
     }
@@ -68,6 +70,8 @@ int main(int argc, char *argv[]){
         }else{
             puts("new client connected ...");
         }
+	int flag = 1;
+	setsockopt(clnt_sock, IPPROTO_TCP, TCP_NODELAY, (void*)&flag, sizeof(int));
 
         SSL* ssl = SSL_new(ctx);
         if(!SSL_set1_groups_list(ssl, kex))
