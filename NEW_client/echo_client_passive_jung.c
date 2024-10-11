@@ -256,12 +256,23 @@ double elapsed_time_pas;
 int main(int argc, char *argv[]){
 		////////////////INIT BENCH////////////////
 	
+	char tls_result_file_name[100];
+	char express_result_file_name[100];
+	strcpy(tls_result_file_name, argv[3]);
+	strcpy(express_result_file_name, argv[3]);
+	strcat(tls_result_file_name, "_tls_time.csv");
+	strcat(express_result_file_name, "_express_time.csv");
+
+	//printf("%s\n", tls_result_file_name);
+	//printf("%s\n", express_result_file_name);
+
+
 
 	if(DNS == 0){
-		fp = fopen("dil2_tls_time_.csv", "a+");
+		fp = fopen(tls_result_file_name, "a+");
  
 	}else{
-		fp = fopen("dil2_express_time_.csv", "a+");
+		fp = fopen(express_result_file_name, "a+");
 	}
     if (fp == NULL) {
         printf("Error opening file!\n");
@@ -315,7 +326,7 @@ int main(int argc, char *argv[]){
 
     int sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(sock < 0){
-        error_handling("socket() error");
+        error_handling("socket() error\n");
     }
 
     struct sockaddr_storage addr;
@@ -326,6 +337,7 @@ int main(int argc, char *argv[]){
 	int SIGN_SIZE;
 	int SIGN_SIZE_BASE64;
 	int CERT_LENGTH;
+	int tot_tlsa_record_len;
 
 	if(DNS==0 && argc==3){
 		printf("TLS 1.3 mode\n");
@@ -342,30 +354,36 @@ int main(int argc, char *argv[]){
 	    	SIGN_SIZE_BASE64 = 3228;
 	    	SIGN_SIZE = 2420;
 	    	CERT_LENGTH = 5312;
+	    	tot_tlsa_record_len = 1;
 	    }
 	    else if(strcmp(argv[3],"dil3")==0){
 	    	PUBKEY_SIZE = 1952;
 	    	SIGN_SIZE_BASE64 = 4392;
 	    	SIGN_SIZE = 3293;
 	    	CERT_LENGTH = 7328;
+	    	tot_tlsa_record_len = 2;
 	    }
 	    else if(strcmp(argv[3],"dil5")==0){
-	    	PUBKEY_SIZE = 1952;
-	    	SIGN_SIZE_BASE64 = 4392;
-	    	SIGN_SIZE = 3293;
-	    	CERT_LENGTH = 9220;
+	    	PUBKEY_SIZE = 2582;
+	    	SIGN_SIZE_BASE64 = 6128;
+	    	SIGN_SIZE = 4596;
+	    	CERT_LENGTH = 9920;
+	    	tot_tlsa_record_len = 2;
 	    }
 	        else if(strcmp(argv[3],"fal512")==0){
 	    	PUBKEY_SIZE = 1220;
 	    	SIGN_SIZE_BASE64 = 876;
 	    	SIGN_SIZE = 656;
 	    	CERT_LENGTH = 2380;
+	    	tot_tlsa_record_len = 1;
+	    
 	    }
 	        else if(strcmp(argv[3],"fal1024")==0){
 	    	PUBKEY_SIZE = 2416;
 	    	SIGN_SIZE_BASE64 = 1700;
 	    	SIGN_SIZE = 1274;
 	    	CERT_LENGTH = 4392;
+	    	tot_tlsa_record_len = 1;
 	    }
 	}
 	int is_start = -1;
@@ -440,7 +458,8 @@ int main(int argc, char *argv[]){
 		int txt_num_total = atoi(&tmp);
 		printf("txt_num_total: %d\n", txt_num_total);
 
-		memcpy(&tmp, passive_record_data+3, 1);
+
+		memcpy(&tmp, passive_record_data+3, tot_tlsa_record_len);
 		int tlsa_num_total = atoi(&tmp);
 		printf("tlsa_num_total: %d\n", tlsa_num_total);
 
@@ -467,7 +486,7 @@ int main(int argc, char *argv[]){
 		
 		//unsigned char *pqtlsa_record_all[tlsa_num];
 		char pqtlsa_record[BUF_SIZE];
-		unsigned char query_pqtlsa_buffer[tlsa_num][3000];
+		unsigned char query_pqtlsa_buffer[tlsa_num][2000];
 		int pqtlsa_len[tlsa_num];
 
 	// to avoid TCP retry after UDP failure
@@ -564,11 +583,19 @@ int main(int argc, char *argv[]){
 
 	//-------------------TLSA(server's certificate) BASE64 Encoding--------------------
 	unsigned char * based64_out;
-	based64_out = hex_to_base64(pqtlsa_record_all, pqtlsa_len,  hex_buffer, tlsa_num);
+	if(strcmp(argv[3],"dil5")==0){
+		*(pqtlsa_len+6) = 898;
+		based64_out = hex_to_base64(pqtlsa_record_all, pqtlsa_len,  hex_buffer, (tlsa_num/2));
+	}
+	else{
+		based64_out = hex_to_base64(pqtlsa_record_all, pqtlsa_len,  hex_buffer, (tlsa_num/2 + 1));
+	}
+	
 	//based64_out = hex_to_base64(tlsa2_record_all, tlsa2_len, hex_buffer);
 	char newline2[4] = "\n";
 	char* ztls_cert;
-    ztls_cert = (char*) malloc(sizeof(char)*10000);
+
+    ztls_cert = (char*) malloc(sizeof(char)*15000);
 	//for(int j = 0; j < 916-64 ; j=j+64){ 908
 	for(int j = 0; j < CERT_LENGTH ; j=j+64){
 		strncat(ztls_cert,based64_out+j,64);
@@ -580,21 +607,26 @@ int main(int argc, char *argv[]){
 	//-------------------------Certificate Hash-------------------------
 	
 	int merged_tlsa_length = 0;
-	for (int i = 0; i < tlsa_num; i++)
+	for (int i = 0; i < (tlsa_num); i++)
 	{
 		merged_tlsa_length += pqtlsa_len[i];
 		//printf("pqtlsa_len: %d\n", pqtlsa_len[i]);
 	}
 	//printf("merged_tlsa_length: %d\n", merged_tlsa_length);
 	
-	unsigned char* merged_tlsa_data = (unsigned char*)calloc(merged_tlsa_length, sizeof(unsigned char));
+	unsigned char* merged_tlsa_data = (unsigned char*)calloc(25000, sizeof(unsigned char));
+	if(merged_tlsa_data == NULL){
+		printf("merged_tlsa_data is NULL mallc failed\n");
+	}
 	int temp = 0;
 	for (int i = 0; i < tlsa_num; i++)
 	{
+		printf("%d     ", pqtlsa_len[i]);
 		memcpy(merged_tlsa_data+temp, pqtlsa_record_all[i], pqtlsa_len[i]);
 		temp += pqtlsa_len[i];
 		//free(pqtlsa_record_all[i]);
 	}
+
 	//free(pqtlsa_record_all);
 	/*
 	for (int i = 0; i < merged_tlsa_length; i++)
@@ -603,6 +635,7 @@ int main(int argc, char *argv[]){
 	}
 	printf("\n\n");
 	*/
+
 
 	unsigned char* tlsa_hash = (unsigned char*)calloc(EVP_MAX_MD_SIZE, sizeof(unsigned char)); //sha256 digest size = 32 bytes
 	char tlsa_hash_string[2 * EVP_MD_size(EVP_sha256()) + 1];  // 2 characters per byte + null terminator
@@ -642,7 +675,7 @@ int main(int argc, char *argv[]){
     }
     tlsa_hash_string[2 * tlsa_hash_length] = '\0';
 
-    //printf("SHA-256 hash: %s\n", tlsa_hash_string);
+    printf("SHA-256 hash: %s\n", tlsa_hash_string);
 
     EVP_MD_CTX_free(mdctx);
     free(tlsa_hash);
@@ -657,7 +690,7 @@ int main(int argc, char *argv[]){
 
 	//********************************************************
 	//*********************Generate E-Box*********************
-	char *txt_record_all = (char*) malloc(sizeof(char)*10000);
+	char *txt_record_all = (char*) malloc(sizeof(char)*14000);
 	memcpy(txt_record_all, passive_record_data, txt_passive_len);
 
 	int	txt_record_all_len = txt_passive_len;
@@ -684,7 +717,7 @@ int main(int argc, char *argv[]){
 	//printf("txt_record_all:\n%s\n\n",txt_record_all);
 	
 	//---------------------Total TXT and TLSA records---------------------
-	char* ebox_val = (char*)calloc(97,sizeof(char));
+	char* ebox_val = (char*)calloc(97+tot_tlsa_record_len-1,sizeof(char));
 	char txt_record_except_signature[BUF_SIZE]="";
 	
 	int offset = 0;
@@ -695,9 +728,9 @@ int main(int argc, char *argv[]){
 	//printf("%02x\n", txt_record_all[offset]);
 
 	a = tlsa_num + '0';
-	memcpy(ebox_val+1, txt_record_all+offset, 1);
+	memcpy(ebox_val+1, txt_record_all+offset, tot_tlsa_record_len);
 	//strcat(ebox_val, &a);
-	offset += 2;
+	offset += (1+tot_tlsa_record_len);
 	//printf("%02x\n", *(txt_record_all+offset));
 
 	//---------------------ExpressPQDelivery version---------------------
@@ -792,7 +825,7 @@ int main(int argc, char *argv[]){
 	//---------------------Add certificate HASH---------------------
 	memcpy(ebox_val+33, tlsa_hash_string, 64);
 
-	printf("ebox-val: %s\n", ebox_val);
+	//printf("ebox-val: %s\n", ebox_val);
 
 	//---------------------E-Box signature value--------------------
 	//printf("txt_record_all[offset -1]: %02x\n",(unsigned char)txt_record_all[offset -1]);
