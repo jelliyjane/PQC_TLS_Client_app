@@ -961,6 +961,7 @@ int main(int argc, char *argv[]){
 	//printf("dns_end: %f\n", *dns_end);
     
     SSL_set_fd(ssl, sock);
+    sleep(2);
     /*
      * handshake start
      */
