@@ -250,8 +250,6 @@ static void ext_free_cb(SSL *s, unsigned int ext_type,
 }
 struct timespec point;
 struct timespec dns_start, dns_end;
-struct timespec pas_start, pas_end;
-double elapsed_time_pas;
 
 int main(int argc, char *argv[]){
 		////////////////INIT BENCH////////////////
@@ -326,7 +324,7 @@ int main(int argc, char *argv[]){
 
     int sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(sock < 0){
-        error_handling("socket() error\n");
+        error_handling("socket() error");
     }
 
     struct sockaddr_storage addr;
@@ -337,7 +335,6 @@ int main(int argc, char *argv[]){
 	int SIGN_SIZE;
 	int SIGN_SIZE_BASE64;
 	int CERT_LENGTH;
-	int tot_tlsa_record_len;
 
 	if(DNS==0 && argc==3){
 		printf("TLS 1.3 mode\n");
@@ -354,36 +351,30 @@ int main(int argc, char *argv[]){
 	    	SIGN_SIZE_BASE64 = 3228;
 	    	SIGN_SIZE = 2420;
 	    	CERT_LENGTH = 5312;
-	    	tot_tlsa_record_len = 1;
 	    }
 	    else if(strcmp(argv[3],"dil3")==0){
 	    	PUBKEY_SIZE = 1952;
 	    	SIGN_SIZE_BASE64 = 4392;
 	    	SIGN_SIZE = 3293;
 	    	CERT_LENGTH = 7328;
-	    	tot_tlsa_record_len = 2;
 	    }
 	    else if(strcmp(argv[3],"dil5")==0){
 	    	PUBKEY_SIZE = 2582;
 	    	SIGN_SIZE_BASE64 = 6128;
 	    	SIGN_SIZE = 4596;
 	    	CERT_LENGTH = 9920;
-	    	tot_tlsa_record_len = 2;
 	    }
 	        else if(strcmp(argv[3],"fal512")==0){
 	    	PUBKEY_SIZE = 1220;
 	    	SIGN_SIZE_BASE64 = 876;
 	    	SIGN_SIZE = 656;
 	    	CERT_LENGTH = 2380;
-	    	tot_tlsa_record_len = 1;
-	    
 	    }
 	        else if(strcmp(argv[3],"fal1024")==0){
 	    	PUBKEY_SIZE = 2416;
 	    	SIGN_SIZE_BASE64 = 1700;
 	    	SIGN_SIZE = 1274;
 	    	CERT_LENGTH = 4392;
-	    	tot_tlsa_record_len = 1;
 	    }
 	}
 	int is_start = -1;
@@ -421,30 +412,8 @@ int main(int argc, char *argv[]){
 
 		//txt_query_retry(txt_passive.argv, txt_passive.txt_num, txt_passive.txt_query_buffer , txt_passive.txt_record_data);
 		pthread_t ptid_passive;
-
-		clock_gettime(CLOCK_MONOTONIC, &pas_start);
-
 		pthread_create(&ptid_passive, NULL, &thread_txt_query_retry, (void *)(&txt_passive));
 		pthread_join(ptid_passive, NULL);
-
-		clock_gettime(CLOCK_MONOTONIC, &pas_end);
-
-    // 시간 차이 계산 (나노초 단위)
-   long time_diff_ns = (pas_end.tv_sec - pas_start.tv_sec) * 1000000000L + (pas_end.tv_nsec - pas_start.tv_nsec);
-
-    // 시간 차이의 2배 계산
-    long double_time_ns = time_diff_ns * 2;
-     struct timespec sleep_time;
-
-    // `double_time_ns` 값을 `timespec` 구조체에 할당
-    sleep_time.tv_sec = double_time_ns / 1000000000L;  // 나노초를 초 단위로 변환
-    sleep_time.tv_nsec = double_time_ns % 1000000000L;  // 나노초 단위의 나머지 값
-
-    printf("Original time difference (ns): %ld\n", time_diff_ns);
-    printf("Sleeping for double time (ns): %ld seconds and %ld nanoseconds\n", sleep_time.tv_sec, sleep_time.tv_nsec);
-
-    // `nanosleep()`으로 대기
-    
 		char passive_txt[sizeof(char)*5000];
 		//strcpy(passive_txt,passive_record_data[0]);
 		/*
@@ -458,8 +427,7 @@ int main(int argc, char *argv[]){
 		int txt_num_total = atoi(&tmp);
 		printf("txt_num_total: %d\n", txt_num_total);
 
-
-		memcpy(&tmp, passive_record_data+3, tot_tlsa_record_len);
+		memcpy(&tmp, passive_record_data+3, 1);
 		int tlsa_num_total = atoi(&tmp);
 		printf("tlsa_num_total: %d\n", tlsa_num_total);
 
@@ -486,7 +454,7 @@ int main(int argc, char *argv[]){
 		
 		//unsigned char *pqtlsa_record_all[tlsa_num];
 		char pqtlsa_record[BUF_SIZE];
-		unsigned char query_pqtlsa_buffer[tlsa_num][2000];
+		unsigned char query_pqtlsa_buffer[tlsa_num][3000];
 		int pqtlsa_len[tlsa_num];
 
 	// to avoid TCP retry after UDP failure
@@ -538,85 +506,42 @@ int main(int argc, char *argv[]){
 		pthread_mutex_init(&mutex,NULL);
 		for (int i = 0; i < tlsa_num; ++i)
 		{
-			//usleep(1000);
 			pthread_create(ptid_pqtlsa+i, NULL, &thread_tlsa_query, (void *)(args2+i));
 		}
-
 		// A thread is created when a program is executed, and is executed when a user triggers
 		//sleep(1);
 		is_start = 1;
-
 		pthread_t ptid_txt[txt_num];
 		for (int i = 1; i < txt_num; ++i)
 		{
-			//usleep(1000);
 			pthread_create(ptid_txt+i, NULL, &thread_txt_query_retry, (void *)(args3+i));
 		}
 
-		/*
 
-		for (int i = 0; i < tlsa_num; ++i)
+	    for (int i = 0; i < tlsa_num; ++i)
 	    {
-	    	if(*(args2[i].pqtlsa_record_len)<0 || *(args2[i].pqtlsa_record_len)>2000){
-	    		printf("tlsa %d query failed\n", i);
-	    		pthread_cancel(ptid_pqtlsa[i]);
-	    		pthread_create(ptid_pqtlsa+i, NULL, &thread_tlsa_query, (void *)(args2+i));
-	    	}
-	    	else{
-	    		pthread_join(ptid_pqtlsa[i], (void **)(pqtlsa_len+i));
-	    	}
-	    	//
+	    	pthread_join(ptid_pqtlsa[i], (void **)(pqtlsa_len+i));
 	    }
 
-
+		
 		for (int i = 1; i < txt_num; ++i)
 	    {
-	    	if(*(args3[i].pqtxt_record_len)<0 || *(args3[i].pqtxt_record_len)>2000){
-	    		printf("txt %d query failed\n", i);
-	    		pthread_cancel(ptid_txt[i]);
-				pthread_create(ptid_txt+i, NULL, &thread_txt_query_retry, (void *)(args3+i));	    	}
-	    	else{
-	    		pthread_join(ptid_txt[i], NULL);
-	    	}
-		    
+		    pthread_join(ptid_txt[i], NULL);
 	    }
-	    */
-	    for (int i = 1; i < txt_num; ++i)
-	    {
-	    	pthread_join(ptid_txt[i], NULL);
-		    
-	    }
-
-		for (int i = 0; i < tlsa_num; ++i)
-	    {
-
-	    	pthread_join(ptid_pqtlsa[i], (void **)(pqtlsa_len+i));
-
-	    	//
-	    }
-
-	    clock_gettime(CLOCK_MONOTONIC, &dns_end);
 
 	    //pthread_join(ptid_txt[0], NULL);
 
+	    clock_gettime(CLOCK_MONOTONIC, &dns_end);
+
 	pthread_join(ptid, NULL);
 	pthread_mutex_destroy(&mutex);
-	
 
 	//-------------------TLSA(server's certificate) BASE64 Encoding--------------------
 	unsigned char * based64_out;
-	if(strcmp(argv[3],"dil5")==0){
-		*(pqtlsa_len+6) = 898;
-		based64_out = hex_to_base64(pqtlsa_record_all, pqtlsa_len,  hex_buffer, (tlsa_num/2));
-	}
-	else{
-		based64_out = hex_to_base64(pqtlsa_record_all, pqtlsa_len,  hex_buffer, (tlsa_num/2 + 1));
-	}
-	
+	based64_out = hex_to_base64(pqtlsa_record_all, pqtlsa_len,  hex_buffer, tlsa_num);
 	//based64_out = hex_to_base64(tlsa2_record_all, tlsa2_len, hex_buffer);
 	char newline2[4] = "\n";
 	char* ztls_cert;
-
     ztls_cert = (char*) malloc(sizeof(char)*15000);
 	//for(int j = 0; j < 916-64 ; j=j+64){ 908
 	for(int j = 0; j < CERT_LENGTH ; j=j+64){
@@ -629,7 +554,7 @@ int main(int argc, char *argv[]){
 	//-------------------------Certificate Hash-------------------------
 	
 	int merged_tlsa_length = 0;
-	for (int i = 0; i < (tlsa_num); i++)
+	for (int i = 0; i < tlsa_num; i++)
 	{
 		merged_tlsa_length += pqtlsa_len[i];
 		//printf("pqtlsa_len: %d\n", pqtlsa_len[i]);
@@ -637,18 +562,13 @@ int main(int argc, char *argv[]){
 	//printf("merged_tlsa_length: %d\n", merged_tlsa_length);
 	
 	unsigned char* merged_tlsa_data = (unsigned char*)calloc(25000, sizeof(unsigned char));
-	if(merged_tlsa_data == NULL){
-		printf("merged_tlsa_data is NULL mallc failed\n");
-	}
 	int temp = 0;
 	for (int i = 0; i < tlsa_num; i++)
 	{
-		printf("%d     ", pqtlsa_len[i]);
 		memcpy(merged_tlsa_data+temp, pqtlsa_record_all[i], pqtlsa_len[i]);
 		temp += pqtlsa_len[i];
 		//free(pqtlsa_record_all[i]);
 	}
-
 	//free(pqtlsa_record_all);
 	/*
 	for (int i = 0; i < merged_tlsa_length; i++)
@@ -657,7 +577,6 @@ int main(int argc, char *argv[]){
 	}
 	printf("\n\n");
 	*/
-
 
 	unsigned char* tlsa_hash = (unsigned char*)calloc(EVP_MAX_MD_SIZE, sizeof(unsigned char)); //sha256 digest size = 32 bytes
 	char tlsa_hash_string[2 * EVP_MD_size(EVP_sha256()) + 1];  // 2 characters per byte + null terminator
@@ -678,7 +597,7 @@ int main(int argc, char *argv[]){
         return -1;
     }
 
-     if (EVP_DigestUpdate(mdctx, merged_tlsa_data, merged_tlsa_length/2) != 1) {
+     if (EVP_DigestUpdate(mdctx, merged_tlsa_data, merged_tlsa_length) != 1) {
         printf("SHA-256 update failed\n");
         EVP_MD_CTX_free(mdctx);
         free(tlsa_hash);
@@ -697,7 +616,7 @@ int main(int argc, char *argv[]){
     }
     tlsa_hash_string[2 * tlsa_hash_length] = '\0';
 
-    printf("SHA-256 hash: %s\n", tlsa_hash_string);
+    //printf("SHA-256 hash: %s\n", tlsa_hash_string);
 
     EVP_MD_CTX_free(mdctx);
     free(tlsa_hash);
@@ -739,7 +658,7 @@ int main(int argc, char *argv[]){
 	//printf("txt_record_all:\n%s\n\n",txt_record_all);
 	
 	//---------------------Total TXT and TLSA records---------------------
-	char* ebox_val = (char*)calloc(97+tot_tlsa_record_len-1,sizeof(char));
+	char* ebox_val = (char*)calloc(97,sizeof(char));
 	char txt_record_except_signature[BUF_SIZE]="";
 	
 	int offset = 0;
@@ -750,9 +669,9 @@ int main(int argc, char *argv[]){
 	//printf("%02x\n", txt_record_all[offset]);
 
 	a = tlsa_num + '0';
-	memcpy(ebox_val+1, txt_record_all+offset, tot_tlsa_record_len);
+	memcpy(ebox_val+1, txt_record_all+offset, 1);
 	//strcat(ebox_val, &a);
-	offset += (1+tot_tlsa_record_len);
+	offset += 2;
 	//printf("%02x\n", *(txt_record_all+offset));
 
 	//---------------------ExpressPQDelivery version---------------------
@@ -847,7 +766,7 @@ int main(int argc, char *argv[]){
 	//---------------------Add certificate HASH---------------------
 	memcpy(ebox_val+33, tlsa_hash_string, 64);
 
-	//printf("ebox-val: %s\n", ebox_val);
+	printf("ebox-val: %s\n", ebox_val);
 
 	//---------------------E-Box signature value--------------------
 	//printf("txt_record_all[offset -1]: %02x\n",(unsigned char)txt_record_all[offset -1]);
@@ -990,7 +909,7 @@ int main(int argc, char *argv[]){
 		
 
 	    if (EVP_DigestVerifyUpdate(mdctx, ebox_val, 97) <= 0) {
-	        fprintf(stderr, "EVP_DigestVerifyUpdate failed\n");
+	        fprintf(stderr, "EVP_DigestVerifyUpdate 실패\n");
 	        ERR_print_errors_fp(stderr);
 	        EVP_MD_CTX_free(mdctx);
         	return 0;
@@ -1093,6 +1012,7 @@ int main(int argc, char *argv[]){
     printf("\nPeriod2: %f\n", (timing_data->cert_received -timing_data->send_client_hello)*1000); //certficate_verify
     printf("\nPeriod3: %f\n", (timing_data->handshake_end - timing_data->cert_received)*1000);
 
+
     log_times(elapsed_time_dns, (timing_data->send_client_hello - timing_data->handshake_start)*1000, (timing_data->cert_received -timing_data->send_client_hello)*1000, (timing_data->handshake_end - timing_data->cert_received)*1000, 0, 0, 0, 0);
 
     SSL_free(ssl);
@@ -1115,14 +1035,16 @@ static void init_tcp_sync(int argc, char *argv[], struct sockaddr_storage * addr
     printf("start A and AAAA DNS records query\n");
     //a_before = (begin1.tv_sec) + (begin1.tv_nsec) / 1000000000.0;
     //printf("%s, %s\n",argv[1],argv[2]);
+    //size_t len = resolve_hostname(argv[1], argv[3], addr);
     size_t len = resolve_hostname("esplab.ioo", argv[2], addr);
-    //size_t len = resolve_hostname(argv[1], argv[2], addr);
     //clock_gettime(CLOCK_MONOTONIC, &begin2);
     printf("complete A and AAAA DNS records response\n");
     //double ending = (begin2.tv_sec) + (begin2.tv_nsec) / 1000000000.0;
-    if(DNS == 0){
-    	clock_gettime(CLOCK_MONOTONIC, &dns_end);
-	}
+    if(DNS==0){
+        clock_gettime(CLOCK_MONOTONIC, &dns_end);	
+    }
+
+
 	if(connect(sock, (struct sockaddr*) addr, len) < 0){
         error_handling("connect() error!");
     }
@@ -1142,7 +1064,8 @@ static int dns_query_with_timeout(const char *domain, int type, unsigned char *a
     }
 
     
-    res_state.retrans = 1;
+    // 타임아웃 설정 (초 단위)
+    res_state.retrans = 3;
     res_state.retry = 1;
 
 
@@ -1169,15 +1092,9 @@ static int txt_query_retry(char *argv[], int txt_num, unsigned char query_txt_bu
 	strcat(query_url,query_num);
 	strcat(query_url,domain_name);
     for (int i = 0; i < retry_count; ++i) {
-        printf("Attempt to query TXT record for %s\n", query_url);
-        if (txt_num == 1){
-        	response =  res_search(query_url, C_IN, type, query_txt_buffer, 2000);
-        }
-        else{
-        	response = dns_query_with_timeout(query_url, ns_t_txt, query_txt_buffer);
-        }
-        //
-        
+        printf("Attempt %d to query TXT record for %s\n", i + 1, query_url);
+
+        response =  res_search(query_url, C_IN, type, query_txt_buffer, 2000);
 
 
         if (response >= 0) {
@@ -1305,11 +1222,8 @@ static size_t resolve_hostname(const char *host, const char *port, struct sockad
 	hint.ai_socktype = SOCK_STREAM;
     hint.ai_protocol = IPPROTO_TCP;
 	struct addrinfo *res = 0;
-	printf("!@#!@#!#@3\n");
-    if(getaddrinfo(host, port, &hint, &res) != 0){
-    	printf("Retry to transform address\n");
-    	getaddrinfo(host, port, &hint, &res);
-    }
+    if(getaddrinfo(host, port, &hint, &res) != 0)
+        error_handling("fail to transform address");
     size_t len = res->ai_addrlen;
     memcpy(addr, res->ai_addr, len);
     freeaddrinfo(res);

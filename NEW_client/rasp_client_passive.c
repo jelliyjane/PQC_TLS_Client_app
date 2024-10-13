@@ -359,10 +359,10 @@ int main(int argc, char *argv[]){
 	    	CERT_LENGTH = 7328;
 	    }
 	    else if(strcmp(argv[3],"dil5")==0){
-	    	PUBKEY_SIZE = 1952;
-	    	SIGN_SIZE_BASE64 = 4392;
-	    	SIGN_SIZE = 3293;
-	    	CERT_LENGTH = 9220;
+	    	PUBKEY_SIZE = 2582;
+	    	SIGN_SIZE_BASE64 = 6128;
+	    	SIGN_SIZE = 4596;
+	    	CERT_LENGTH = 9920;
 	    }
 	        else if(strcmp(argv[3],"fal512")==0){
 	    	PUBKEY_SIZE = 1220;
@@ -542,7 +542,7 @@ int main(int argc, char *argv[]){
 	//based64_out = hex_to_base64(tlsa2_record_all, tlsa2_len, hex_buffer);
 	char newline2[4] = "\n";
 	char* ztls_cert;
-    ztls_cert = (char*) malloc(sizeof(char)*10000);
+    ztls_cert = (char*) malloc(sizeof(char)*15000);
 	//for(int j = 0; j < 916-64 ; j=j+64){ 908
 	for(int j = 0; j < CERT_LENGTH ; j=j+64){
 		strncat(ztls_cert,based64_out+j,64);
@@ -561,7 +561,7 @@ int main(int argc, char *argv[]){
 	}
 	//printf("merged_tlsa_length: %d\n", merged_tlsa_length);
 	
-	unsigned char* merged_tlsa_data = (unsigned char*)calloc(merged_tlsa_length, sizeof(unsigned char));
+	unsigned char* merged_tlsa_data = (unsigned char*)calloc(25000, sizeof(unsigned char));
 	int temp = 0;
 	for (int i = 0; i < tlsa_num; i++)
 	{
@@ -631,7 +631,7 @@ int main(int argc, char *argv[]){
 
 	//********************************************************
 	//*********************Generate E-Box*********************
-	char *txt_record_all = (char*) malloc(sizeof(char)*10000);
+	char *txt_record_all = (char*) malloc(sizeof(char)*14000);
 	memcpy(txt_record_all, passive_record_data, txt_passive_len);
 
 	int	txt_record_all_len = txt_passive_len;
