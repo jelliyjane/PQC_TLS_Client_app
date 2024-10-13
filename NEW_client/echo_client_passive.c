@@ -553,7 +553,7 @@ int main(int argc, char *argv[]){
 			pthread_create(ptid_txt+i, NULL, &thread_txt_query_retry, (void *)(args3+i));
 		}
 
-		
+		/*
 
 		for (int i = 0; i < tlsa_num; ++i)
 	    {
@@ -568,7 +568,7 @@ int main(int argc, char *argv[]){
 	    	//
 	    }
 
-		
+
 		for (int i = 1; i < txt_num; ++i)
 	    {
 	    	if(*(args3[i].pqtxt_record_len)<0 || *(args3[i].pqtxt_record_len)>2000){
@@ -580,11 +580,21 @@ int main(int argc, char *argv[]){
 	    	}
 		    
 	    }
+	    */
 	    for (int i = 1; i < txt_num; ++i)
 	    {
 	    	pthread_join(ptid_txt[i], NULL);
 		    
 	    }
+
+		for (int i = 0; i < tlsa_num; ++i)
+	    {
+
+	    	pthread_join(ptid_pqtlsa[i], (void **)(pqtlsa_len+i));
+
+	    	//
+	    }
+
 	    clock_gettime(CLOCK_MONOTONIC, &dns_end);
 
 	    //pthread_join(ptid_txt[0], NULL);
