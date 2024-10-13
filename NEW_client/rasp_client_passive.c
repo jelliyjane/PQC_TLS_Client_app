@@ -254,18 +254,33 @@ struct timespec dns_start, dns_end;
 int main(int argc, char *argv[]){
 		////////////////INIT BENCH////////////////
 	
+	char tls_result_file_name[100];
+	char express_result_file_name[100];
+	strcpy(tls_result_file_name, argv[3]);
+	strcpy(express_result_file_name, argv[3]);
+	strcat(tls_result_file_name, "_tls_time.csv");
+	strcat(express_result_file_name, "_express_time.csv");
 
-	
-	fp = fopen("time_measurements.csv", "a+");
+	//printf("%s\n", tls_result_file_name);
+	//printf("%s\n", express_result_file_name);
+
+
+
+	if(DNS == 0){
+		fp = fopen(tls_result_file_name, "a+");
+ 
+	}else{
+		fp = fopen(express_result_file_name, "a+");
+	}
     if (fp == NULL) {
         printf("Error opening file!\n");
         return 1;
 	}
 	fseek(fp, 0, SEEK_END);
-	long filesize = ftell(fp); 
+	long filesize = ftell(fp);
 
 	if (filesize == 0) {
-        fprintf(fp, "DNS A Query Time,DNS TXT Query Time,DNS TLSA Query Time,DNS Total Query Time,SSL Handshake Start,Send Client Hello,Receive Certificate,SSL Handshake Finish\n");
+        fprintf(fp, "DNS lookup Time,Period1, Period2,Period3, SSL Handshake Start,Send Client Hello,Receive Certificate,SSL Handshake Finish\n");
     }
     fseek(fp, 0, SEEK_SET);
 	
@@ -515,6 +530,8 @@ int main(int argc, char *argv[]){
 	    }
 
 	    //pthread_join(ptid_txt[0], NULL);
+
+	    clock_gettime(CLOCK_MONOTONIC, &dns_end);
 
 	pthread_join(ptid, NULL);
 	pthread_mutex_destroy(&mutex);
@@ -995,7 +1012,8 @@ int main(int argc, char *argv[]){
     printf("\nPeriod2: %f\n", (timing_data->cert_received -timing_data->send_client_hello)*1000); //certficate_verify
     printf("\nPeriod3: %f\n", (timing_data->handshake_end - timing_data->cert_received)*1000);
 
-    log_times(aquerytime, (timing_data->send_client_hello - timing_data->handshake_start)*1000, (timing_data->cert_received -timing_data->send_client_hello)*1000, totalquerytime, timing_data->handshake_start, timing_data->send_client_hello, timing_data->cert_received, timing_data->handshake_end);
+
+    log_times(elapsed_time_dns, (timing_data->send_client_hello - timing_data->handshake_start)*1000, (timing_data->cert_received -timing_data->send_client_hello)*1000, (timing_data->handshake_end - timing_data->cert_received)*1000, 0, 0, 0, 0);
 
     SSL_free(ssl);
     close(sock);
@@ -1022,7 +1040,10 @@ static void init_tcp_sync(int argc, char *argv[], struct sockaddr_storage * addr
     //clock_gettime(CLOCK_MONOTONIC, &begin2);
     printf("complete A and AAAA DNS records response\n");
     //double ending = (begin2.tv_sec) + (begin2.tv_nsec) / 1000000000.0;
-    clock_gettime(CLOCK_MONOTONIC, &dns_end);
+    if(DNS==0){
+        clock_gettime(CLOCK_MONOTONIC, &dns_end);	
+    }
+
 
 	if(connect(sock, (struct sockaddr*) addr, len) < 0){
         error_handling("connect() error!");
