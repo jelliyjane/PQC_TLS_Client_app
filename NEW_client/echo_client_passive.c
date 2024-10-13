@@ -538,19 +538,24 @@ int main(int argc, char *argv[]){
 		pthread_mutex_init(&mutex,NULL);
 		for (int i = 0; i < tlsa_num; ++i)
 		{
+			//usleep(1000);
 			pthread_create(ptid_pqtlsa+i, NULL, &thread_tlsa_query, (void *)(args2+i));
 		}
+
 		// A thread is created when a program is executed, and is executed when a user triggers
 		//sleep(1);
 		is_start = 1;
+
 		pthread_t ptid_txt[txt_num];
 		for (int i = 1; i < txt_num; ++i)
 		{
+			//usleep(1000);
 			pthread_create(ptid_txt+i, NULL, &thread_txt_query_retry, (void *)(args3+i));
 		}
 
+		
 
-	    for (int i = 0; i < tlsa_num; ++i)
+		for (int i = 0; i < tlsa_num; ++i)
 	    {
 	    	if(*(args2[i].pqtlsa_record_len)<0 || *(args2[i].pqtlsa_record_len)>2000){
 	    		printf("tlsa %d query failed\n", i);
@@ -575,11 +580,18 @@ int main(int argc, char *argv[]){
 	    	}
 		    
 	    }
+	    for (int i = 1; i < txt_num; ++i)
+	    {
+	    	pthread_join(ptid_txt[i], NULL);
+		    
+	    }
+	    clock_gettime(CLOCK_MONOTONIC, &dns_end);
 
 	    //pthread_join(ptid_txt[0], NULL);
 
 	pthread_join(ptid, NULL);
 	pthread_mutex_destroy(&mutex);
+	
 
 	//-------------------TLSA(server's certificate) BASE64 Encoding--------------------
 	unsigned char * based64_out;
@@ -1093,13 +1105,14 @@ static void init_tcp_sync(int argc, char *argv[], struct sockaddr_storage * addr
     printf("start A and AAAA DNS records query\n");
     //a_before = (begin1.tv_sec) + (begin1.tv_nsec) / 1000000000.0;
     //printf("%s, %s\n",argv[1],argv[2]);
-    //size_t len = resolve_hostname(argv[1], argv[3], addr);
+    //size_t len = resolve_hostname("esplab.ioo", argv[2], addr);
     size_t len = resolve_hostname(argv[1], argv[2], addr);
     //clock_gettime(CLOCK_MONOTONIC, &begin2);
     printf("complete A and AAAA DNS records response\n");
     //double ending = (begin2.tv_sec) + (begin2.tv_nsec) / 1000000000.0;
-    clock_gettime(CLOCK_MONOTONIC, &dns_end);
-
+    if(DNS == 0){
+    	clock_gettime(CLOCK_MONOTONIC, &dns_end);
+	}
 	if(connect(sock, (struct sockaddr*) addr, len) < 0){
         error_handling("connect() error!");
     }
